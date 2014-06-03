@@ -38,11 +38,11 @@ type DataGrid interface {
 	// Returns a int->Attribute map containing classes
 	GetClassAttrs() map[int]Attribute
 	// Returns a new set of instances containing only the selected columns
-	SelectAttributes(attrs []Attribute) *DataGrid
+	SelectAttributes(attrs []Attribute) DataGrid
 	// Returns a human readable string
 	String() string
 	// Checks if two DataGrids are equal
-	Equals(*DataGrid) bool
+	Equals(DataGrid) bool
 }
 
 type UpdatableDataGrid interface {
@@ -51,5 +51,5 @@ type UpdatableDataGrid interface {
 	// Add a new attribute
 	AddAttribute(Attribute) error
 	// Delete an attribute
-	DeleteAttribute(Attribute) error
+	RemoveAttribute(Attribute) error
 }

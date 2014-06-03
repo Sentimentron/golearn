@@ -19,6 +19,7 @@ type Instances struct {
 	Rows       int
 	Cols       int
 	ClassIndex int
+	rowCount   int
 }
 
 func xorFloatOp(item float64) float64 {
@@ -73,9 +74,17 @@ func (inst *Instances) GetAttrs() map[int]Attribute {
 	return ret
 }
 
+// GetClassAttrs returns the set of Attributes that are currently
+// designated as class variables
+func (inst *Instances) GetClassAttrs() map[int]Attribute {
+	ret := make(map[int]Attribute)
+	ret[inst.ClassIndex] = inst.attributes[inst.ClassIndex]
+	return ret
+}
+
 // Sort does an in-place radix sort of Instances, using SortDirection
-// direction (Ascending or Descending) with attrs as a slice of Attribute
-// indices that you want to sort by.
+// direction (Ascending or Descending) with attrs as a slice of Attributes
+// that you want to sort by.
 //
 // IMPORTANT: Radix sort is not stable, so ordering outside
 // the attributes used for sorting is arbitrary.
@@ -186,7 +195,7 @@ func NewInstancesFromRaw(attrs []Attribute, rows int, data []float64) *Instances
 // NewInstancesFromDense creates a set of Instances from a mat64.Dense
 // matrix
 func NewInstancesFromDense(attrs []Attribute, rows int, mat *mat64.Dense) *Instances {
-	return &Instances{mat, attrs, rows, len(attrs), len(attrs) - 1}
+	return &Instances{mat, attrs, rows, len(attrs), len(attrs) - 1, rows}
 }
 
 // InstancesTrainTestSplit takes a given Instances (src) and a train-test fraction
@@ -312,6 +321,83 @@ func (inst *Instances) GetRow(attrs []Attribute, row int) map[Attribute][]byte {
 	return ret
 }
 
+// AddAttribute adds a new Attribute to this set of Instances
+// IMPORTANT: will return an error code if this set of instances
+// has been allocated (and leave the Attribute set unmodified)
+func (inst *Instances) AddAttribute(a Attribute) error {
+	if inst.storage != nil {
+		return fmt.Errorf("Can't resize online")
+	}
+	inst.attributes = append(inst.attributes, a)
+	return nil
+}
+
+// RemoveAttribute removes an Attribute from this set of Instances
+// IMPORTANT: will return an error code if this set of instances
+// has been allocated (and will also leave the Attribute set unmodified)
+func (inst *Instances) RemoveAttribute(a Attribute) error {
+	if inst.storage != nil {
+		return fmt.Errorf("Can't resize online!")
+	}
+	revisedAttributes := make([]Attribute, 0)
+	for i := range inst.attributes {
+		if inst.attributes[i].Equals(a) {
+			continue
+		}
+		revisedAttributes = append(revisedAttributes, inst.attributes[i])
+	}
+	inst.attributes = revisedAttributes
+	return nil
+}
+
+// AppendRow adds the given row map to this set of Instances.
+// Allocates the required storage if unallocated.
+// IMPORTANT: will return an error code (and won't add the row)
+// if a) the number of rows exceeds the space allocated
+// b) if the row map contains values with more than 8 bytes
+// c) if the row map contains unrecognised Attributes
+func (inst *Instances) AppendRow(row map[Attribute][]byte) error {
+	// If we haven't allocated yet...
+	if inst.storage == nil {
+		// Allocate new storage
+		tmp := make([]float64, inst.Rows*len(inst.attributes))
+		inst.storage = mat64.NewDense(inst.Rows, len(inst.attributes), tmp)
+	}
+	// Double check that we've got enough space allocated
+	if inst.rowCount >= inst.Rows {
+		return fmt.Errorf("No space available")
+	}
+	// Convert attributes into offsets
+	positionMap := make(map[int][]byte)
+	for a := range row {
+		matched := -1
+		for i := range inst.attributes {
+			if inst.attributes[i].Equals(a) {
+				matched = i
+				break
+			}
+		}
+		if matched == -1 {
+			return fmt.Errorf("Couldn't resolve attribute %s", a)
+		}
+		if len(row[a]) != 8 {
+			return fmt.Errorf("Variable width types aren't supported")
+		}
+		positionMap[matched] = row[a]
+	}
+	// Convert bytes into values, store in matrix
+	for col := range positionMap {
+		val, status := binary.Uvarint(positionMap[col])
+		if status != 1 {
+			return fmt.Errorf("Unpacking failed: %d", status)
+		}
+		valf := math.Float64frombits(val)
+		inst.set(col, inst.rowCount, valf)
+	}
+	inst.rowCount++
+	return nil
+}
+
 // MapOverRows passes each row map into a function used for training
 // Within the closure, return `false, nil` to indicate the end of
 // processing, or return `_, error` to indicate a problem.
@@ -361,6 +447,7 @@ func (inst *Instances) GetClassDistributionAfterSplit(at Attribute) map[string]m
 // Get returns the system representation (float64) of the value
 // stored at the given row and col coordinate.
 func (inst *Instances) Get(row int, col int) float64 {
+	panic("Deprecated")
 	return inst.storage.At(row, col)
 }
 
@@ -373,18 +460,27 @@ func (inst *Instances) get(row int, col int) float64 {
 // Set sets the system representation (float64) to val at the
 // given row and column coordinate.
 func (inst *Instances) Set(row int, col int, val float64) {
+	panic("Deprecated")
+	inst.storage.Set(row, col, val)
+}
+
+// set sets the system representation (float64) to val at the
+// given row and column coordinate.
+func (inst *Instances) set(row int, col int, val float64) {
 	inst.storage.Set(row, col, val)
 }
 
 // GetRowVector returns a row of system representation
 // values at the given row index.
 func (inst *Instances) GetRowVector(row int) []float64 {
+	panic("Deprecated")
 	return inst.storage.RowView(row)
 }
 
 // GetRowVector returns a row of system representation
 // values at the given row index, excluding the class attribute
 func (inst *Instances) GetRowVectorWithoutClass(row int) []float64 {
+	panic("Deprecated")
 	rawRow := make([]float64, inst.Cols)
 	copy(rawRow, inst.GetRowVector(row))
 	return append(rawRow[0:inst.ClassIndex], rawRow[inst.ClassIndex+1:inst.Cols]...)
@@ -394,6 +490,7 @@ func (inst *Instances) GetRowVectorWithoutClass(row int) []float64 {
 // row's class, as determined by the Attribute at the ClassIndex
 // position from GetAttr
 func (inst *Instances) GetClass(row int) string {
+	panic("Deprecated")
 	attr := inst.GetAttr(inst.ClassIndex)
 	val := inst.Get(row, inst.ClassIndex)
 	return attr.GetStringFromSysVal(val)
@@ -402,6 +499,7 @@ func (inst *Instances) GetClass(row int) string {
 // GetClassDist returns a map containing the count of each
 // class type (indexed by the class' string representation)
 func (inst *Instances) GetClassDistribution() map[string]int {
+	panic("Deprecated")
 	ret := make(map[string]int)
 	attr := inst.GetAttr(inst.ClassIndex)
 	for i := 0; i < inst.Rows; i++ {
@@ -414,11 +512,13 @@ func (inst *Instances) GetClassDistribution() map[string]int {
 }
 
 func (Inst *Instances) GetClassAttrPtr() *Attribute {
+	panic("Deprecated")
 	attr := Inst.GetAttr(Inst.ClassIndex)
 	return &attr
 }
 
 func (Inst *Instances) GetClassAttr() Attribute {
+	panic("Deprecated")
 	return Inst.GetAttr(Inst.ClassIndex)
 }
 
@@ -428,6 +528,7 @@ func (Inst *Instances) GetClassAttr() Attribute {
 
 // GetAttributeCount returns the number of attributes represented.
 func (inst *Instances) GetAttributeCount() int {
+	panic("Deprecated")
 	// Return the number of attributes attached to this Instance set
 	return len(inst.attributes)
 }
@@ -436,6 +537,7 @@ func (inst *Instances) GetAttributeCount() int {
 // to value val, implicitly converting the string to system-representation
 // via the appropriate Attribute function.
 func (inst *Instances) SetAttrStr(row int, attr int, val string) {
+	panic("Deprecated")
 	// Set an attribute on a particular row from a string value
 	a := inst.attributes[attr]
 	sysVal := a.GetSysValFromString(val)
@@ -445,6 +547,7 @@ func (inst *Instances) SetAttrStr(row int, attr int, val string) {
 // GetAttrStr returns a human-readable string value stored in column `attr'
 // and row `row', as determined by the appropriate Attribute function.
 func (inst *Instances) GetAttrStr(row int, attr int) string {
+	panic("Deprecated")
 	// Get a human-readable value from a particular row
 	a := inst.attributes[attr]
 	usrVal := a.GetStringFromSysVal(inst.Get(row, attr))
@@ -454,6 +557,7 @@ func (inst *Instances) GetAttrStr(row int, attr int) string {
 // GetAttr returns information about an attribute at given index
 // in the attributes slice.
 func (inst *Instances) GetAttr(attrIndex int) Attribute {
+	panic("Deprecated")
 	// Return a copy of an attribute attached to this Instance set
 	return inst.attributes[attrIndex]
 }
@@ -461,6 +565,7 @@ func (inst *Instances) GetAttr(attrIndex int) Attribute {
 // GetAttrIndex returns the offset of a given Attribute `a' to an
 // index in the attributes slice
 func (inst *Instances) GetAttrIndex(of Attribute) int {
+	panic("Deprecated")
 	// Finds the offset of an Attribute in this instance set
 	// Returns -1 if no Attribute matches
 	for i, a := range inst.attributes {
@@ -473,6 +578,7 @@ func (inst *Instances) GetAttrIndex(of Attribute) int {
 
 // ReplaceAttr overwrites the attribute at `index' with `a'
 func (inst *Instances) ReplaceAttr(index int, a Attribute) {
+	panic("Deprecated")
 	// Replace an Attribute at index with another
 	// DOESN'T CONVERT ANY EXISTING VALUES
 	inst.attributes[index] = a
@@ -545,7 +651,7 @@ func (inst *Instances) String() string {
 
 // SelectAttributes returns a new instance set containing
 // the values from this one with only the Attributes specified
-func (inst *Instances) SelectAttributes(attrs []Attribute) *Instances {
+func (inst *Instances) SelectAttributes(attrs []Attribute) DataGrid {
 	ret := NewInstances(attrs, inst.Rows)
 	attrIndices := make([]int, 0)
 	for _, a := range attrs {
@@ -602,7 +708,11 @@ func (inst *Instances) SampleWithReplacement(size int) *Instances {
 //
 // IMPORTANT: does not explicitly check if the Attributes are considered equal.
 // Status: Compatable
-func (inst *Instances) Equal(other *Instances) bool {
+func (inst *Instances) Equals(otherGrid DataGrid) bool {
+	other, ok := otherGrid.(*Instances)
+	if !ok {
+		return false
+	}
 	if inst.Rows != other.Rows {
 		return false
 	}

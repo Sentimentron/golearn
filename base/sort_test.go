@@ -88,7 +88,7 @@ func TestSortDesc(testEnv *testing.T) {
 		testEnv.Error("Instances are not sorted in descending order")
 		testEnv.Error(inst1)
 	}
-	if !inst2.Equal(inst1) {
+	if !inst2.Equals(inst1) {
 		inst1.storage.Sub(inst1.storage, inst2.storage)
 		testEnv.Error("Instances don't match")
 		testEnv.Error(inst1)
@@ -126,7 +126,7 @@ func TestSortAsc(testEnv *testing.T) {
 		testEnv.Error("This file should be sorted in ascending order")
 	}
 
-	if !inst2.Equal(inst) {
+	if !inst2.Equals(inst) {
 		inst.storage.Sub(inst.storage, inst2.storage)
 		testEnv.Error(inst.storage)
 		testEnv.Error("Instances don't match")
