@@ -10,18 +10,6 @@ import (
 	"github.com/gonum/matrix/mat64"
 )
 
-// SortDirection specifies sorting direction...
-type SortDirection int
-
-const (
-	// Descending says that Instances should be sorted high to low...
-	Descending SortDirection = 1
-	// Ascending states that Instances should be sorted low to high...
-	Ascending SortDirection = 2
-)
-
-const highBit int64 = -1 << 63
-
 // Instances represents a grid of numbers (typed by Attributes)
 // stored internally in mat.DenseMatrix as float64's.
 // See docs/instances.md for more information.
