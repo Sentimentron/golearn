@@ -25,21 +25,20 @@ type FixedDataGrid interface {
 	// RowStr returns the string representation of a given row
 	RowStr(int) string
 	// GetRow returns the GetRows() response at a given row
-	GetRow([]Attribute, int) map[int][]byte
+	GetRow([]Attribute, int) map[Attribute][]byte
 	// Shuffle randomizes the row order
 	Shuffle() *FixedDataGrid
 }
 
 type DataGrid interface {
-	// GetRows returns a channel containing int -> bytes maps
-	// containing the attribute's rows for the selected Attributes
-	GetRows([]Attribute) chan map[int][]byte
+	// Pass all rows into a training closure
+	MapOverRows([]Attribute, func(map[Attribute][]byte) (bool, error)) error
 	// Returns a int->Attribute map. Shouldn't be incompatibly changed.
 	GetAttrs() map[int]Attribute
 	// Returns a int->Attribute map containing classes
 	GetClassAttrs() map[int]Attribute
 	// Returns a new set of instances containing only the selected columns
-	SelectAttributes(attrs []Attribute)
+	SelectAttributes(attrs []Attribute) *DataGrid
 	// Returns a human readable string
 	String() string
 	// Checks if two DataGrids are equal

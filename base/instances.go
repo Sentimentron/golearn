@@ -5,9 +5,9 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"math/rand"
-
 	"github.com/gonum/matrix/mat64"
+	"math"
+	"math/rand"
 )
 
 // Instances represents a grid of numbers (typed by Attributes)
@@ -79,7 +79,6 @@ func (inst *Instances) GetAttrs() map[int]Attribute {
 //
 // IMPORTANT: Radix sort is not stable, so ordering outside
 // the attributes used for sorting is arbitrary.
-// STATUS: Incompatable
 func (inst *Instances) Sort(direction SortDirection, attributes []Attribute) error {
 	attrs, err := inst.resolveToInternal(attributes)
 	fmt.Println(attrs)
@@ -222,7 +221,6 @@ func InstancesTrainTestSplit(src *Instances, prop float64) (*Instances, *Instanc
 		rawTestMatrix.SetRow(i, rowDat)
 	}
 
-
 	trainingRet := NewInstancesFromDense(src.attributes, len(trainingRows), rawTrainMatrix)
 	testRet := NewInstancesFromDense(src.attributes, len(testingRows), rawTestMatrix)
 	return trainingRet, testRet
@@ -303,6 +301,34 @@ func (inst *Instances) DecomposeOnAttributeValues(at Attribute) map[string]*Inst
 	return ret
 }
 
+// GetRow returns a map containing the values of the selected Attributes
+// at a particular row.
+func (inst *Instances) GetRow(attrs []Attribute, row int) map[Attribute][]byte {
+	ret := make(map[Attribute][]byte)
+	for i, a := range attrs {
+		val := math.Float64bits(inst.get(row, i))
+		binary.PutUvarint(ret[a], val)
+	}
+	return ret
+}
+
+// MapOverRows passes each row map into a function used for training
+// Within the closure, return `false, nil` to indicate the end of
+// processing, or return `_, error` to indicate a problem.
+func (inst *Instances) MapOverRows(attrs []Attribute, mapFunc func(map[Attribute][]byte) (bool, error)) error {
+	for i := 0; i < inst.Rows; i++ {
+		row := inst.GetRow(attrs, i)
+		ok, err := mapFunc(row)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			break
+		}
+	}
+	return nil
+}
+
 // GetClassDistribution returns the class distribution after a hypothetical split
 // STATUS: Compatable
 func (inst *Instances) GetClassDistributionAfterSplit(at Attribute) map[string]map[string]int {
@@ -335,6 +361,12 @@ func (inst *Instances) GetClassDistributionAfterSplit(at Attribute) map[string]m
 // Get returns the system representation (float64) of the value
 // stored at the given row and col coordinate.
 func (inst *Instances) Get(row int, col int) float64 {
+	return inst.storage.At(row, col)
+}
+
+// get returns the system representation (float64) of the value
+// stored at the given row and col coordinate.
+func (inst *Instances) get(row int, col int) float64 {
 	return inst.storage.At(row, col)
 }
 
@@ -513,7 +545,6 @@ func (inst *Instances) String() string {
 
 // SelectAttributes returns a new instance set containing
 // the values from this one with only the Attributes specified
-// Status: Compatable
 func (inst *Instances) SelectAttributes(attrs []Attribute) *Instances {
 	ret := NewInstances(attrs, inst.Rows)
 	attrIndices := make([]int, 0)
@@ -554,8 +585,8 @@ func (inst *Instances) Shuffle() {
 //
 // IMPORTANT: There's a high chance of seeing duplicate rows
 // whenever size is close to the row count.
-// Status: Incompatable
 func (inst *Instances) SampleWithReplacement(size int) *Instances {
+	panic("Deprecated")
 	ret := NewInstances(inst.attributes, size)
 	for i := 0; i < size; i++ {
 		srcRow := rand.Intn(inst.Rows)
