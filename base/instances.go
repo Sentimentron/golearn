@@ -44,6 +44,35 @@ func printFloatByteArr(arr [][]byte) {
 	}
 }
 
+func (inst *Instances) resolveToInternal(attrs []Attribute) ([]int, error) {
+	ret := make([]int, len(attrs))
+	counter := 0
+	selfAttrs := inst.GetAttrs()
+	for i := range selfAttrs {
+		for j := range attrs {
+			if selfAttrs[i].Equals(attrs[j]) {
+				ret[j] = i
+				counter++
+				break
+			}
+		}
+	}
+	if counter != len(attrs) {
+		return nil, fmt.Errorf("Not all attributes resolved %s %s", attrs, selfAttrs)
+	}
+	return ret, nil
+}
+
+// Retrieves information about the Attributes attached to this
+// set of Instances.
+func (inst *Instances) GetAttrs() map[int]Attribute {
+	ret := make(map[int]Attribute)
+	for i, j := range inst.attributes {
+		ret[i] = j
+	}
+	return ret
+}
+
 // Sort does an in-place radix sort of Instances, using SortDirection
 // direction (Ascending or Descending) with attrs as a slice of Attribute
 // indices that you want to sort by.
@@ -51,7 +80,12 @@ func printFloatByteArr(arr [][]byte) {
 // IMPORTANT: Radix sort is not stable, so ordering outside
 // the attributes used for sorting is arbitrary.
 // STATUS: Incompatable
-func (inst *Instances) Sort(direction SortDirection, attrs []int) {
+func (inst *Instances) Sort(direction SortDirection, attributes []Attribute) error {
+	attrs, err := inst.resolveToInternal(attributes)
+	fmt.Println(attrs)
+	if err != nil {
+		return err
+	}
 	// Create a buffer
 	buf := bytes.NewBuffer(nil)
 	ds := make([][]byte, inst.Rows)
@@ -66,7 +100,7 @@ func (inst *Instances) Sort(direction SortDirection, attrs []int) {
 		ds[i] = byteBuf
 		rs[i] = i
 	}
-	// Sort viua
+	// Sort values
 	valueBins := make([][][]byte, 256)
 	rowBins := make([][]int, 256)
 	for i := 0; i < 8*len(attrs); i++ {
@@ -117,6 +151,7 @@ func (inst *Instances) Sort(direction SortDirection, attrs []int) {
 			inst.swapRows(i, j)
 		}
 	}
+	return nil
 }
 
 // NewInstances returns a preallocated Instances structure

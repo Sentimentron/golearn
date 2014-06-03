@@ -1,5 +1,6 @@
 package base
 
+import "fmt"
 import "testing"
 
 func isSortedAsc(inst *Instances, attrIndex int) bool {
@@ -30,6 +31,29 @@ func isSortedDesc(inst *Instances, attrIndex int) bool {
 	return true
 }
 
+func TestAttrLookup(testEnv *testing.T) {
+	inst1, err := ParseCSVToInstances("../examples/datasets/iris_headers.csv", true)
+	if err != nil {
+		testEnv.Error(err)
+		return
+	}
+	attributes := inst1.GetAttrs()
+	attrs := make([]Attribute, 4)
+	attrs[0] = attributes[3]
+	attrs[1] = attributes[2]
+	attrs[2] = attributes[1]
+	attrs[3] = attributes[0]
+	resolvedAttrs, err := inst1.resolveToInternal(attrs)
+	if err != nil {
+		testEnv.Error(err)
+	}
+	for i, j := range resolvedAttrs {
+		if i != 3-j {
+			testEnv.Error(fmt.Sprintf("%d %d", i, j))
+		}
+	}
+}
+
 func TestSortDesc(testEnv *testing.T) {
 	inst1, err := ParseCSVToInstances("../examples/datasets/iris_headers.csv", true)
 	if err != nil {
@@ -48,19 +72,24 @@ func TestSortDesc(testEnv *testing.T) {
 	if !isSortedDesc(inst2, 0) {
 		testEnv.Error("Reference data not sorted in descending order!")
 	}
-	attrs := make([]int, 4)
-	attrs[0] = 3
-	attrs[1] = 2
-	attrs[2] = 1
-	attrs[3] = 0
-	inst1.Sort(Descending, attrs)
+
+	attributes := inst1.GetAttrs()
+	attrs := make([]Attribute, 4)
+	attrs[0] = attributes[3]
+	attrs[1] = attributes[2]
+	attrs[2] = attributes[1]
+	attrs[3] = attributes[0]
+	err = inst1.Sort(Descending, attrs)
+	if err != nil {
+		testEnv.Error(err)
+		return
+	}
 	if !isSortedDesc(inst1, 0) {
 		testEnv.Error("Instances are not sorted in descending order")
 		testEnv.Error(inst1)
 	}
 	if !inst2.Equal(inst1) {
 		inst1.storage.Sub(inst1.storage, inst2.storage)
-		testEnv.Error(inst1.storage)
 		testEnv.Error("Instances don't match")
 		testEnv.Error(inst1)
 		testEnv.Error(inst2)
@@ -76,11 +105,12 @@ func TestSortAsc(testEnv *testing.T) {
 		testEnv.Error(err)
 		return
 	}
-	attrs := make([]int, 4)
-	attrs[0] = 3
-	attrs[1] = 2
-	attrs[2] = 1
-	attrs[3] = 0
+	attributes := inst.GetAttrs()
+	attrs := make([]Attribute, 4)
+	attrs[0] = attributes[3]
+	attrs[1] = attributes[2]
+	attrs[2] = attributes[1]
+	attrs[3] = attributes[0]
 	inst.Sort(Ascending, attrs)
 	if !isSortedAsc(inst, 0) {
 		testEnv.Error("Instances are not sorted in ascending order")
