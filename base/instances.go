@@ -247,20 +247,12 @@ func (inst *Instances) CountAttrValues(a Attribute) map[string]int {
 		panic("Invalid attribute")
 	}
 	for i := 0; i < inst.Rows; i++ {
-		sysVal := inst.Get(i, attrIndex)
-		stringVal := a.GetStringFromSysVal(sysVal)
+		sysVal := inst.get(i, attrIndex)
+		convVal := PackFloatToBytes(sysVal)
+		stringVal := a.GetStringFromSysVal(convVal)
 		ret[stringVal] += 1
 	}
 	return ret
-}
-
-// CountClassValues returns the class distribution of this
-// Instances set
-// STATUS: Deprecated
-func (inst *Instances) CountClassValues() map[string]int {
-	panic("Deprecated")
-	a := inst.GetAttr(inst.ClassIndex)
-	return inst.CountAttrValues(a)
 }
 
 // DecomposeOnAttributeValues divides the instance set depending on the
@@ -294,7 +286,9 @@ func (inst *Instances) DecomposeOnAttributeValues(at Attribute) map[string]*Inst
 	}
 	for i := 0; i < inst.Rows; i++ {
 		newAttrCounter := 0
-		classVar := at.GetStringFromSysVal(inst.Get(i, attrIndex))
+		sysVal := inst.Get(i, attrIndex)
+		convVal := PackFloatToBytes(sysVal)
+		classVar := at.GetStringFromSysVal(convVal)
 		dest := ret[classVar]
 		destRow := rows[classVar]
 		for j := 0; j < inst.Cols; j++ {
@@ -431,8 +425,12 @@ func (inst *Instances) GetClassDistributionAfterSplit(at Attribute) map[string]m
 	classAttr := inst.GetAttr(inst.ClassIndex)
 
 	for i := 0; i < inst.Rows; i++ {
-		splitVar := at.GetStringFromSysVal(inst.Get(i, attrIndex))
-		classVar := classAttr.GetStringFromSysVal(inst.Get(i, inst.ClassIndex))
+		sysVal := inst.get(i, attrIndex)
+		convVal := PackFloatToBytes(sysVal)
+		splitVar := at.GetStringFromSysVal(convVal)
+		sysVal = inst.Get(i, inst.ClassIndex)
+		convVal = PackFloatToBytes(sysVal)
+		classVar := classAttr.GetStringFromSysVal(convVal)
 		if _, ok := ret[splitVar]; !ok {
 			ret[splitVar] = make(map[string]int)
 			i--
@@ -444,12 +442,9 @@ func (inst *Instances) GetClassDistributionAfterSplit(at Attribute) map[string]m
 	return ret
 }
 
-// Get returns the system representation (float64) of the value
-// stored at the given row and col coordinate.
-func (inst *Instances) Get(row int, col int) float64 {
-	panic("Deprecated")
-	return inst.storage.At(row, col)
-}
+//
+// Internal access functions
+//
 
 // get returns the system representation (float64) of the value
 // stored at the given row and col coordinate.
@@ -457,131 +452,10 @@ func (inst *Instances) get(row int, col int) float64 {
 	return inst.storage.At(row, col)
 }
 
-// Set sets the system representation (float64) to val at the
-// given row and column coordinate.
-func (inst *Instances) Set(row int, col int, val float64) {
-	panic("Deprecated")
-	inst.storage.Set(row, col, val)
-}
-
 // set sets the system representation (float64) to val at the
 // given row and column coordinate.
 func (inst *Instances) set(row int, col int, val float64) {
 	inst.storage.Set(row, col, val)
-}
-
-// GetRowVector returns a row of system representation
-// values at the given row index.
-func (inst *Instances) GetRowVector(row int) []float64 {
-	panic("Deprecated")
-	return inst.storage.RowView(row)
-}
-
-// GetRowVector returns a row of system representation
-// values at the given row index, excluding the class attribute
-func (inst *Instances) GetRowVectorWithoutClass(row int) []float64 {
-	panic("Deprecated")
-	rawRow := make([]float64, inst.Cols)
-	copy(rawRow, inst.GetRowVector(row))
-	return append(rawRow[0:inst.ClassIndex], rawRow[inst.ClassIndex+1:inst.Cols]...)
-}
-
-// GetClass returns the string representation of the given
-// row's class, as determined by the Attribute at the ClassIndex
-// position from GetAttr
-func (inst *Instances) GetClass(row int) string {
-	panic("Deprecated")
-	attr := inst.GetAttr(inst.ClassIndex)
-	val := inst.Get(row, inst.ClassIndex)
-	return attr.GetStringFromSysVal(val)
-}
-
-// GetClassDist returns a map containing the count of each
-// class type (indexed by the class' string representation)
-func (inst *Instances) GetClassDistribution() map[string]int {
-	panic("Deprecated")
-	ret := make(map[string]int)
-	attr := inst.GetAttr(inst.ClassIndex)
-	for i := 0; i < inst.Rows; i++ {
-		val := inst.Get(i, inst.ClassIndex)
-		cls := attr.GetStringFromSysVal(val)
-		ret[cls]++
-	}
-
-	return ret
-}
-
-func (Inst *Instances) GetClassAttrPtr() *Attribute {
-	panic("Deprecated")
-	attr := Inst.GetAttr(Inst.ClassIndex)
-	return &attr
-}
-
-func (Inst *Instances) GetClassAttr() Attribute {
-	panic("Deprecated")
-	return Inst.GetAttr(Inst.ClassIndex)
-}
-
-//
-// Attribute functions
-//
-
-// GetAttributeCount returns the number of attributes represented.
-func (inst *Instances) GetAttributeCount() int {
-	panic("Deprecated")
-	// Return the number of attributes attached to this Instance set
-	return len(inst.attributes)
-}
-
-// SetAttrStr sets the system-representation value of row in column attr
-// to value val, implicitly converting the string to system-representation
-// via the appropriate Attribute function.
-func (inst *Instances) SetAttrStr(row int, attr int, val string) {
-	panic("Deprecated")
-	// Set an attribute on a particular row from a string value
-	a := inst.attributes[attr]
-	sysVal := a.GetSysValFromString(val)
-	inst.storage.Set(row, attr, sysVal)
-}
-
-// GetAttrStr returns a human-readable string value stored in column `attr'
-// and row `row', as determined by the appropriate Attribute function.
-func (inst *Instances) GetAttrStr(row int, attr int) string {
-	panic("Deprecated")
-	// Get a human-readable value from a particular row
-	a := inst.attributes[attr]
-	usrVal := a.GetStringFromSysVal(inst.Get(row, attr))
-	return usrVal
-}
-
-// GetAttr returns information about an attribute at given index
-// in the attributes slice.
-func (inst *Instances) GetAttr(attrIndex int) Attribute {
-	panic("Deprecated")
-	// Return a copy of an attribute attached to this Instance set
-	return inst.attributes[attrIndex]
-}
-
-// GetAttrIndex returns the offset of a given Attribute `a' to an
-// index in the attributes slice
-func (inst *Instances) GetAttrIndex(of Attribute) int {
-	panic("Deprecated")
-	// Finds the offset of an Attribute in this instance set
-	// Returns -1 if no Attribute matches
-	for i, a := range inst.attributes {
-		if a.Equals(of) {
-			return i
-		}
-	}
-	return -1
-}
-
-// ReplaceAttr overwrites the attribute at `index' with `a'
-func (inst *Instances) ReplaceAttr(index int, a Attribute) {
-	panic("Deprecated")
-	// Replace an Attribute at index with another
-	// DOESN'T CONVERT ANY EXISTING VALUES
-	inst.attributes[index] = a
 }
 
 //
@@ -666,41 +540,12 @@ func (inst *Instances) SelectAttributes(attrs []Attribute) DataGrid {
 	return ret
 }
 
-// GeneratePredictionVector generates a new set of Instances
-// with the same number of rows, but only this Instance set's
-// class Attribute.
-// Status: Deprecated
-func (inst *Instances) GeneratePredictionVector() *Instances {
-	panic("Deprecated")
-	attrs := make([]Attribute, 1)
-	attrs[0] = inst.GetClassAttr()
-	ret := NewInstances(attrs, inst.Rows)
-	return ret
-}
-
 // Shuffle randomizes the row order in place
 func (inst *Instances) Shuffle() {
 	for i := 0; i < inst.Rows; i++ {
 		j := rand.Intn(i + 1)
 		inst.swapRows(i, j)
 	}
-}
-
-// SampleWithReplacement returns a new set of Instances of size `size'
-// containing random rows from this set of Instances.
-//
-// IMPORTANT: There's a high chance of seeing duplicate rows
-// whenever size is close to the row count.
-func (inst *Instances) SampleWithReplacement(size int) *Instances {
-	panic("Deprecated")
-	ret := NewInstances(inst.attributes, size)
-	for i := 0; i < size; i++ {
-		srcRow := rand.Intn(inst.Rows)
-		for j := 0; j < inst.Cols; j++ {
-			ret.Set(i, j, inst.Get(srcRow, j))
-		}
-	}
-	return ret
 }
 
 // Equal checks whether a given Instance set is exactly the same

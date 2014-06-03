@@ -6,7 +6,7 @@ import "testing"
 func isSortedAsc(inst *Instances, attrIndex int) bool {
 	valPrev := 0.0
 	for i := 0; i < inst.Rows; i++ {
-		cur := inst.Get(i, attrIndex)
+		cur := inst.get(i, attrIndex)
 		if i > 0 {
 			if valPrev > cur {
 				return false
@@ -20,7 +20,7 @@ func isSortedAsc(inst *Instances, attrIndex int) bool {
 func isSortedDesc(inst *Instances, attrIndex int) bool {
 	valPrev := 0.0
 	for i := 0; i < inst.Rows; i++ {
-		cur := inst.Get(i, attrIndex)
+		cur := inst.get(i, attrIndex)
 		if i > 0 {
 			if valPrev < cur {
 				return false

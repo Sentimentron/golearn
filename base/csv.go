@@ -143,6 +143,9 @@ func ParseCSVToInstances(filepath string, hasHeaders bool) (instances *Instances
 	defer file.Close()
 	reader := csv.NewReader(file)
 
+	// Get Attribute structure
+	attrStructure := instances.GetAt
+
 	rowCounter := 0
 	for {
 		record, err := reader.Read()
