@@ -1,7 +1,6 @@
 package base
 
 import (
-	"fmt"
 	. "github.com/smartystreets/goconvey/convey"
 	"testing"
 )
@@ -22,7 +21,6 @@ func TestInstancesAppendRowMinimal(t *testing.T) {
 			Convey("That shouldn't have an error", func() {
 				So(err, ShouldEqual, nil)
 			})
-			fmt.Println(inst.storage)
 			Convey("And the row gets printed", func() {
 				rowStr := inst.RowStr(0)
 				Convey("The value in the row string should be the same", func() {

@@ -200,7 +200,6 @@ func (Attr *CategoricalAttribute) GetSysValFromString(rawVal string) []byte {
 	if catIndex == -1 {
 		Attr.values = append(Attr.values, rawVal)
 		catIndex = len(Attr.values) - 1
-		fmt.Printf("%d %s\n", catIndex, rawVal)
 	}
 
 	ret := PackU64ToBytes(uint64(catIndex))
