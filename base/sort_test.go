@@ -89,7 +89,6 @@ func TestSortDesc(testEnv *testing.T) {
 		testEnv.Error(inst1)
 	}
 	if !inst2.Equals(inst1) {
-		inst1.storage.Sub(inst1.storage, inst2.storage)
 		testEnv.Error("Instances don't match")
 		testEnv.Error(inst1)
 		testEnv.Error(inst2)

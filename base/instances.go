@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"github.com/gonum/matrix/mat64"
 	"math/rand"
-	"reflect"
 )
 
 // Instances represents a grid of numbers (typed by Attributes)
@@ -90,7 +89,6 @@ func (inst *Instances) GetClassAttrs() map[int]Attribute {
 // the attributes used for sorting is arbitrary.
 func (inst *Instances) Sort(direction SortDirection, attributes []Attribute) error {
 	attrs, err := inst.resolveToInternal(attributes)
-	fmt.Println(attrs)
 	if err != nil {
 		return err
 	}
@@ -463,7 +461,6 @@ func (inst *Instances) get(row int, col int) float64 {
 // set sets the system representation (float64) to val at the
 // given row and column coordinate.
 func (inst *Instances) set(row int, col int, val float64) {
-	//fmt.Printf("%d %d %.2f\n", row, col, val)
 	inst.storage.Set(row, col, val)
 }
 
@@ -577,9 +574,7 @@ func (inst *Instances) Equals(otherGrid DataGrid) bool {
 		return false
 	}
 	for i := 0; i < inst.Rows; i++ {
-		row1 := inst.GetRow(inst.GetAttrs(), i)
-		row2 := other.GetRow(inst.GetAttrs(), i)
-		eq := reflect.DeepEqual(row1, row2)
+		eq := inst.RowStr(i) == other.RowStr(i)
 		if !eq {
 			return false
 		}
