@@ -18,6 +18,19 @@ func TestPackAndUnpack(t *testing.T) {
 			})
 		})
 	})
+
+	Convey("Given another uint64", t, func() {
+		x := uint64(1)
+		Convey("When the integer is packed", func() {
+			packed := PackU64ToBytes(x)
+			Convey("And then unpacked", func() {
+				unpacked := UnpackBytesToU64(packed)
+				Convey("The unpacked version should be the same", func() {
+					So(x, ShouldEqual, unpacked)
+				})
+			})
+		})
+	})
 }
 
 func TestPackAndUnpackFloat(t *testing.T) {

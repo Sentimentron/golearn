@@ -200,6 +200,7 @@ func (Attr *CategoricalAttribute) GetSysValFromString(rawVal string) []byte {
 	if catIndex == -1 {
 		Attr.values = append(Attr.values, rawVal)
 		catIndex = len(Attr.values) - 1
+		fmt.Printf("%d %s\n", catIndex, rawVal)
 	}
 
 	ret := PackU64ToBytes(uint64(catIndex))
@@ -221,7 +222,7 @@ func (Attr *CategoricalAttribute) String() string {
 // the length of the array.
 // TODO: Return a user-configurable default instead.
 func (Attr *CategoricalAttribute) GetStringFromSysVal(rawVal []byte) string {
-	convVal := int(UnpackBytesToFloat(rawVal))
+	convVal := int(UnpackBytesToU64(rawVal))
 	if convVal >= len(Attr.values) {
 		panic(fmt.Sprintf("Out of range: %d in %d", convVal, len(Attr.values)))
 	}

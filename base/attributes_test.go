@@ -20,3 +20,32 @@ func TestFloatAttributeSysVal(t *testing.T) {
 		})
 	})
 }
+
+func TestCategoricalAttributeVal(t *testing.T) {
+	attr := NewCategoricalAttribute()
+	Convey("Given some string", t, func() {
+		x := "hello world!"
+		Convey("When the string gets converted", func() {
+			packed := attr.GetSysValFromString(x)
+			Convey("And then unconverted", func() {
+				unpacked := attr.GetStringFromSysVal(packed)
+				Convey("The unpacked version should be the same", func() {
+					So(unpacked, ShouldEqual, x)
+				})
+			})
+		})
+	})
+	Convey("Given some second string", t, func() {
+		x := "hello world 1!"
+		Convey("When the string gets converted", func() {
+			packed := attr.GetSysValFromString(x)
+			So(packed[7], ShouldEqual, 0x1)
+			Convey("And then unconverted", func() {
+				unpacked := attr.GetStringFromSysVal(packed)
+				Convey("The unpacked version should be the same", func() {
+					So(unpacked, ShouldEqual, x)
+				})
+			})
+		})
+	})
+}
