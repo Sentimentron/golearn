@@ -1,9 +1,7 @@
 package base
 
 import (
-	"encoding/binary"
 	"fmt"
-	"math"
 	"strconv"
 )
 
@@ -104,12 +102,7 @@ func (Attr *FloatAttribute) CheckSysValFromString(rawVal string) ([]byte, error)
 		return nil, err
 	}
 
-	ret := make([]byte, 4)
-	status := binary.PutUvarint(ret, math.Float64bits(f))
-	if status != 1 {
-		return nil, fmt.Errorf("Unpacking failed!")
-	}
-
+	ret := PackFloatToBytes(f)
 	return ret, nil
 }
 
@@ -129,8 +122,7 @@ func (Attr *FloatAttribute) GetSysValFromString(rawVal string) []byte {
 // GetStringFromSysVal converts a given system value to to a string with two decimal
 // places of precision [TODO: revise this and allow more precision].
 func (Attr *FloatAttribute) GetStringFromSysVal(rawVal []byte) string {
-	val, status := binary.Uvarint(rawVal)
-	f := math.Float64frombits(val)
+	f := UnpackBytesToFloat(rawVal)
 	formatString := fmt.Sprintf("%%.%df", Attr.Precision)
 	return fmt.Sprintf(formatString, f)
 }
@@ -170,25 +162,17 @@ func (Attr *CategoricalAttribute) GetType() int {
 func (Attr *CategoricalAttribute) GetSysVal(userVal string) []byte {
 	for idx, val := range Attr.values {
 		if val == userVal {
-			ret := make([]byte, 8)
-			status := binary.PutUvarint(ret, uint64(idx))
-			if status != 1 {
-				panic(fmt.Sprintf("Packing failed! %d", status))
-			}
-			return ret
+			return PackU64ToBytes(uint64(idx))
 		}
 	}
-	return make([]byte, 0)
+	return nil
 }
 
 // GetUsrVal returns a human-readable representation of the given sysVal.
 //
 // IMPORTANT: this function doesn't check the boundaries of the array.
 func (Attr *CategoricalAttribute) GetUsrVal(sysVal []byte) string {
-	idx, status := binary.Uvarint(sysVal)
-	if status != 1 {
-		panic(fmt.Sprintf("Unpacking failed! %d", status))
-	}
+	idx := UnpackBytesToU64(sysVal)
 	return Attr.values[idx]
 }
 
@@ -218,12 +202,7 @@ func (Attr *CategoricalAttribute) GetSysValFromString(rawVal string) []byte {
 		catIndex = len(Attr.values) - 1
 	}
 
-	ret := make([]byte, 8)
-	status := binary.PutUvarint(ret, uint64(catIndex))
-	if status != 1 {
-		panic(fmt.Sprintf("Packing failed! %d", status))
-	}
-
+	ret := PackU64ToBytes(uint64(catIndex))
 	return ret
 }
 
@@ -242,11 +221,8 @@ func (Attr *CategoricalAttribute) String() string {
 // the length of the array.
 // TODO: Return a user-configurable default instead.
 func (Attr *CategoricalAttribute) GetStringFromSysVal(rawVal []byte) string {
-	convVal, status := binary.Varint(rawVal)
-	if status != 0 {
-		panic(fmt.Sprintf("Unpacking failed! %d", status))
-	}
-	if int(convVal) >= len(Attr.values) {
+	convVal := int(UnpackBytesToFloat(rawVal))
+	if convVal >= len(Attr.values) {
 		panic(fmt.Sprintf("Out of range: %d in %d", convVal, len(Attr.values)))
 	}
 	return Attr.values[convVal]

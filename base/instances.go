@@ -6,8 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"github.com/gonum/matrix/mat64"
-	"math"
 	"math/rand"
+	"reflect"
 )
 
 // Instances represents a grid of numbers (typed by Attributes)
@@ -195,7 +195,7 @@ func NewInstancesFromRaw(attrs []Attribute, rows int, data []float64) *Instances
 // NewInstancesFromDense creates a set of Instances from a mat64.Dense
 // matrix
 func NewInstancesFromDense(attrs []Attribute, rows int, mat *mat64.Dense) *Instances {
-	return &Instances{mat, attrs, rows, len(attrs), len(attrs) - 1, rows}
+	return &Instances{mat, attrs, rows, len(attrs), len(attrs) - 1, 0}
 }
 
 // InstancesTrainTestSplit takes a given Instances (src) and a train-test fraction
@@ -235,6 +235,16 @@ func InstancesTrainTestSplit(src *Instances, prop float64) (*Instances, *Instanc
 	return trainingRet, testRet
 }
 
+// GetAttrIndex returns the index of the first matching Attribute
+func (inst *Instances) GetAttrIndex(a Attribute) int {
+	for attrIndex, attr := range inst.attributes {
+		if attr.Equals(a) {
+			return attrIndex
+		}
+	}
+	return -1
+}
+
 // CountAttrValues returns the distribution of values of a given
 // Attribute.
 // IMPORTANT: calls panic() if the attribute index of a cannot be
@@ -242,7 +252,10 @@ func InstancesTrainTestSplit(src *Instances, prop float64) (*Instances, *Instanc
 // STATUS: Compatable
 func (inst *Instances) CountAttrValues(a Attribute) map[string]int {
 	ret := make(map[string]int)
+
+	// Find the attribute index for this value
 	attrIndex := inst.GetAttrIndex(a)
+
 	if attrIndex == -1 {
 		panic("Invalid attribute")
 	}
@@ -286,7 +299,7 @@ func (inst *Instances) DecomposeOnAttributeValues(at Attribute) map[string]*Inst
 	}
 	for i := 0; i < inst.Rows; i++ {
 		newAttrCounter := 0
-		sysVal := inst.Get(i, attrIndex)
+		sysVal := inst.get(i, attrIndex)
 		convVal := PackFloatToBytes(sysVal)
 		classVar := at.GetStringFromSysVal(convVal)
 		dest := ret[classVar]
@@ -296,7 +309,7 @@ func (inst *Instances) DecomposeOnAttributeValues(at Attribute) map[string]*Inst
 			if a.Equals(at) {
 				continue
 			}
-			dest.Set(destRow, newAttrCounter, inst.Get(i, j))
+			dest.set(destRow, newAttrCounter, inst.get(i, j))
 			newAttrCounter++
 		}
 		rows[classVar]++
@@ -306,11 +319,10 @@ func (inst *Instances) DecomposeOnAttributeValues(at Attribute) map[string]*Inst
 
 // GetRow returns a map containing the values of the selected Attributes
 // at a particular row.
-func (inst *Instances) GetRow(attrs []Attribute, row int) map[Attribute][]byte {
+func (inst *Instances) GetRow(attrs map[int]Attribute, row int) map[Attribute][]byte {
 	ret := make(map[Attribute][]byte)
-	for i, a := range attrs {
-		val := math.Float64bits(inst.get(row, i))
-		binary.PutUvarint(ret[a], val)
+	for a := range attrs {
+		ret[attrs[a]] = PackFloatToBytes(inst.get(row, a))
 	}
 	return ret
 }
@@ -358,7 +370,7 @@ func (inst *Instances) AppendRow(row map[Attribute][]byte) error {
 		inst.storage = mat64.NewDense(inst.Rows, len(inst.attributes), tmp)
 	}
 	// Double check that we've got enough space allocated
-	if inst.rowCount >= inst.Rows {
+	if inst.Rows <= inst.rowCount {
 		return fmt.Errorf("No space available")
 	}
 	// Convert attributes into offsets
@@ -381,12 +393,8 @@ func (inst *Instances) AppendRow(row map[Attribute][]byte) error {
 	}
 	// Convert bytes into values, store in matrix
 	for col := range positionMap {
-		val, status := binary.Uvarint(positionMap[col])
-		if status != 1 {
-			return fmt.Errorf("Unpacking failed: %d", status)
-		}
-		valf := math.Float64frombits(val)
-		inst.set(col, inst.rowCount, valf)
+		valf := UnpackBytesToFloat(positionMap[col])
+		inst.set(inst.rowCount, col, valf)
 	}
 	inst.rowCount++
 	return nil
@@ -395,7 +403,7 @@ func (inst *Instances) AppendRow(row map[Attribute][]byte) error {
 // MapOverRows passes each row map into a function used for training
 // Within the closure, return `false, nil` to indicate the end of
 // processing, or return `_, error` to indicate a problem.
-func (inst *Instances) MapOverRows(attrs []Attribute, mapFunc func(map[Attribute][]byte) (bool, error)) error {
+func (inst *Instances) MapOverRows(attrs map[int]Attribute, mapFunc func(map[Attribute][]byte) (bool, error)) error {
 	for i := 0; i < inst.Rows; i++ {
 		row := inst.GetRow(attrs, i)
 		ok, err := mapFunc(row)
@@ -422,13 +430,13 @@ func (inst *Instances) GetClassDistributionAfterSplit(at Attribute) map[string]m
 	}
 
 	// Get the class index
-	classAttr := inst.GetAttr(inst.ClassIndex)
+	classAttr := inst.attributes[inst.ClassIndex]
 
 	for i := 0; i < inst.Rows; i++ {
 		sysVal := inst.get(i, attrIndex)
 		convVal := PackFloatToBytes(sysVal)
 		splitVar := at.GetStringFromSysVal(convVal)
-		sysVal = inst.Get(i, inst.ClassIndex)
+		sysVal = inst.get(i, inst.ClassIndex)
 		convVal = PackFloatToBytes(sysVal)
 		classVar := classAttr.GetStringFromSysVal(convVal)
 		if _, ok := ret[splitVar]; !ok {
@@ -455,6 +463,7 @@ func (inst *Instances) get(row int, col int) float64 {
 // set sets the system representation (float64) to val at the
 // given row and column coordinate.
 func (inst *Instances) set(row int, col int, val float64) {
+	//fmt.Printf("%d %d %.2f\n", row, col, val)
 	inst.storage.Set(row, col, val)
 }
 
@@ -469,12 +478,14 @@ func (inst *Instances) RowStr(row int) string {
 	var buffer bytes.Buffer
 	for j := 0; j < inst.Cols; j++ {
 		val := inst.storage.At(row, j)
+		convVal := PackFloatToBytes(val)
 		a := inst.attributes[j]
 		postfix := " "
 		if j == inst.Cols-1 {
 			postfix = ""
 		}
-		buffer.WriteString(fmt.Sprintf("%s%s", a.GetStringFromSysVal(val), postfix))
+
+		buffer.WriteString(fmt.Sprintf("%s%s", a.GetStringFromSysVal(convVal), postfix))
 	}
 	return buffer.String()
 }
@@ -507,8 +518,9 @@ func (inst *Instances) String() string {
 		buffer.WriteString("\t")
 		for j := 0; j < inst.Cols; j++ {
 			val := inst.storage.At(i, j)
+			convVal := PackFloatToBytes(val)
 			a := inst.attributes[j]
-			buffer.WriteString(fmt.Sprintf("%s ", a.GetStringFromSysVal(val)))
+			buffer.WriteString(fmt.Sprintf("%s ", a.GetStringFromSysVal(convVal)))
 		}
 		buffer.WriteString("\n")
 	}
@@ -534,7 +546,7 @@ func (inst *Instances) SelectAttributes(attrs []Attribute) DataGrid {
 	}
 	for i := 0; i < inst.Rows; i++ {
 		for j, a := range attrIndices {
-			ret.Set(i, j, inst.Get(i, a))
+			ret.set(i, j, inst.get(i, a))
 		}
 	}
 	return ret
@@ -565,10 +577,11 @@ func (inst *Instances) Equals(otherGrid DataGrid) bool {
 		return false
 	}
 	for i := 0; i < inst.Rows; i++ {
-		for j := 0; j < inst.Cols; j++ {
-			if inst.GetAttrStr(i, j) != other.GetAttrStr(i, j) {
-				return false
-			}
+		row1 := inst.GetRow(inst.GetAttrs(), i)
+		row2 := other.GetRow(inst.GetAttrs(), i)
+		eq := reflect.DeepEqual(row1, row2)
+		if !eq {
+			return false
 		}
 	}
 	return true

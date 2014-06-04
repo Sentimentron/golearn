@@ -114,14 +114,15 @@ func ParseCSVSniffAttributeTypes(filepath string, hasHeaders bool) []Attribute {
 // the read Instances.
 func ParseCSVToInstances(filepath string, hasHeaders bool) (instances *Instances, err error) {
 
-	defer func() {
-		if r := recover(); r != nil {
-			var ok bool
-			if err, ok = r.(error); !ok {
-				err = fmt.Errorf("golearn: ParseCSVToInstances: %v", r)
+	/*	defer func() {
+			if r := recover(); r != nil {
+				var ok bool
+				if err, ok = r.(error); !ok {
+					err = fmt.Errorf("golearn: ParseCSVToInstances: %v", r)
+				}
 			}
-		}
-	}()
+		}()
+	*/
 
 	// Read the number of rows in the file
 	rowCount := ParseCSVGetRows(filepath)
@@ -144,8 +145,8 @@ func ParseCSVToInstances(filepath string, hasHeaders bool) (instances *Instances
 	reader := csv.NewReader(file)
 
 	// Get Attribute structure
-	attrStructure := instances.GetAt
-
+	attrStructure := instances.GetAttrs()
+	rowStructure := make(map[Attribute][]byte, len(attrStructure))
 	rowCounter := 0
 	for {
 		record, err := reader.Read()
@@ -160,13 +161,13 @@ func ParseCSVToInstances(filepath string, hasHeaders bool) (instances *Instances
 				continue
 			}
 		}
-		for i := range attrs {
-			instances.SetAttrStr(rowCounter, i, record[i])
+		for i := range attrStructure {
+			rowStructure[attrStructure[i]] = attrStructure[i].GetSysValFromString(record[i])
 		}
+		instances.AppendRow(rowStructure)
 		rowCounter++
 	}
-
-	return
+	return instances, nil
 }
 
 //ParseCSV parses a CSV file and returns the number of columns and rows, the headers, the labels associated with

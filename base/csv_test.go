@@ -97,10 +97,11 @@ func TestReadAwkwardInsatnces(testEnv *testing.T) {
 		testEnv.Error(err)
 		return
 	}
-	if inst.GetAttr(0).GetType() != Float64Type {
+	attrs := inst.GetAttrs()
+	if attrs[0].GetType() != Float64Type {
 		testEnv.Error("Should be float!")
 	}
-	if inst.GetAttr(1).GetType() != CategoricalType {
+	if attrs[1].GetType() != CategoricalType {
 		testEnv.Error("Should be discrete!")
 	}
 }
