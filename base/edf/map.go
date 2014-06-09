@@ -9,8 +9,9 @@ import (
 // EdfFile represents a mapped file on disk or
 // and anonymous mapping for instance storage
 type EdfFile struct {
-	f *os.File
-	m mmap.Mmap
+	f        *os.File
+	m        []mmap.Mmap
+	pageSize int64
 }
 
 // EdfMap takes an os.File and returns an EdfMappedFile
@@ -29,8 +30,9 @@ func EdfMap(f *os.File, mode int) (*EdfFile, error) {
 	var ret EdfFile
 	var err error
 
-	// Assign os.File
+	// Set up various things
 	ret.f = f
+	ret.m = make([]mmap.Mmap, 0)
 
 	// Figure out the flags
 	protFlags := mmap.PROT_READ
@@ -39,17 +41,18 @@ func EdfMap(f *os.File, mode int) (*EdfFile, error) {
 	}
 	mapFlags := mmap.MAP_FILE | mmap.MAP_SHARED
 
-	// Detect the current architecture
-	maxLength := 64 * (1024 * 1024)
-	/*	maxLength := 2 * (1000 * 1000 * 1000)
-		if runtime.GOARCH == "amd64" {
-		maxLength = EDF_LENGTH
-	}*/
+	// Get the page size
+	pageSize := int64(os.Getpagesize())
+	ret.pageSize = pageSize
 
 	// Map the file
-	ret.m, err = mmap.Map(f, 0, maxLength, protFlags, mapFlags)
-	if err != nil {
-		return nil, err
+	for i := int64(0); i < EDF_SIZE; i += int64(EDF_LENGTH) * pageSize {
+		thisMapping, err := mmap.Map(f, i*pageSize, int(int64(EDF_LENGTH)*pageSize), protFlags, mapFlags)
+		if err != nil {
+			// TODO: cleanup
+			return nil, err
+		}
+		ret.m = append(ret.m, thisMapping)
 	}
 
 	// Verify or generate the header
@@ -71,22 +74,27 @@ func EdfMap(f *os.File, mode int) (*EdfFile, error) {
 	return &ret, err
 }
 
+// getSegment returns the segment where page `i` exists
+func (e *EdfFile) getSegment(i int64) int64 {
+	return i / e.pageSize
+}
+
 // VerifyHeader checks that this version of GoLearn can
 // read the file presented
 func (e *EdfFile) VerifyHeader() error {
 	// Check the magic bytes
-	diff := (e.m[0] ^ byte('G')) | (e.m[1] ^ byte('O'))
-	diff |= (e.m[2] ^ byte('L')) | (e.m[3] ^ byte('N'))
+	diff := (e.m[0][0] ^ byte('G')) | (e.m[0][1] ^ byte('O'))
+	diff |= (e.m[0][2] ^ byte('L')) | (e.m[0][3] ^ byte('N'))
 	if diff != 0 {
 		return fmt.Errorf("Invalid magic bytes")
 	}
 	// Check the file version
-	version := int32FromBytes(e.m[4:8])
+	version := int32FromBytes(e.m[0][4:8])
 	if version != EDF_VERSION {
 		return fmt.Errorf("Unsupported version: %u", version)
 	}
 	// Check the page size
-	pageSize := int32FromBytes(e.m[8:12])
+	pageSize := int32FromBytes(e.m[0][8:12])
 	if pageSize != int32(os.Getpagesize()) {
 		return fmt.Errorf("Unsupported page size: (file: %d, system: %d", pageSize, os.Getpagesize())
 	}
@@ -96,18 +104,24 @@ func (e *EdfFile) VerifyHeader() error {
 // createHeader writes a valid header file into the file.
 // Unexported since it can cause data loss.
 func (e *EdfFile) createHeader() {
-	e.m[0] = byte('G')
-	e.m[1] = byte('O')
-	e.m[2] = byte('L')
-	e.m[3] = byte('N')
-	int32ToBytes(EDF_VERSION, e.m[4:8])
-	int32ToBytes(int32(os.Getpagesize()), e.m[8:12])
+	e.m[0][0] = byte('G')
+	e.m[0][1] = byte('O')
+	e.m[0][2] = byte('L')
+	e.m[0][3] = byte('N')
+	int32ToBytes(EDF_VERSION, e.m[0][4:8])
+	int32ToBytes(int32(os.Getpagesize()), e.m[0][8:12])
 	e.Sync()
 }
 
 // Sync writes information to physical storage
 func (e *EdfFile) Sync() error {
-	return e.m.Sync(mmap.MS_SYNC)
+	for _, m := range e.m {
+		err := m.Sync(mmap.MS_SYNC)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // truncate changes the size of the underlying file
@@ -157,6 +171,11 @@ func (e *EdfFile) Unmap(flags int) error {
 		e.Sync()
 	}
 	// Unmap the file
-	// 	err := e.m.Unmap()
+	for _, m := range e.m {
+		err := m.Unmap()
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }

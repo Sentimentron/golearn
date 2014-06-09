@@ -1,11 +1,27 @@
 package edf
 
+// map.go:    handles mmaping, truncation, header creation, verification,
+//            creation of initial thread contents block (todo)
+//            creation of initial thread metadata block (todo)
+//            creation of initial free bitmap (todo)
+// free.go:   handles extending the free bitmap (todo),
+//            handles finding an unallocated block (todo)
+//            handles declaration of unallocated blocks (todo)
+// thread.go: handles extending thread contents block (todo)
+//            extending thread metadata block (todo), adding threads (todo),
+//            retrieving the segments and offsets relevant to a thread (todo)
+//            resolution of threads by name (todo)
+//            appending data to a thread (todo)
+
 const (
 	// File format version
 	EDF_VERSION = 1
-	// Sets the maximum length of the mapping in bytes
-	// Currently set (arbitrarily to 32 GiB)
-	EDF_LENGTH = 32 * (1024 * 1024 * 1024)
+	// Number of OS-pages in each slice
+	EDF_LENGTH = 1024
+	// Sets the maximum size of the mapping, represented with
+	// EDF_LENGTH segments
+	// Currently set arbitrarily to 4 GiB
+	EDF_SIZE = 4 * (1024 * 1024 * 1024)
 )
 
 const (
