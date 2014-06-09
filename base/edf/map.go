@@ -9,9 +9,20 @@ import (
 // EdfFile represents a mapped file on disk or
 // and anonymous mapping for instance storage
 type EdfFile struct {
-	f        *os.File
-	m        []mmap.Mmap
-	pageSize int64
+	f           *os.File
+	m           []mmap.Mmap
+	segmentSize uint
+	pageSize    uint
+}
+
+// EdfRange represents a start and an end segment
+// mapped in an EdfFile and also the byte offsets
+// within that segment
+type EdfRange struct {
+	SegmentStart uint
+	SegmentEnd   uint
+	ByteStart    uint
+	ByteEnd      uint
 }
 
 // EdfMap takes an os.File and returns an EdfMappedFile
@@ -43,7 +54,9 @@ func EdfMap(f *os.File, mode int) (*EdfFile, error) {
 
 	// Get the page size
 	pageSize := int64(os.Getpagesize())
-	ret.pageSize = pageSize
+	// Segment size is the size of each mapped region
+	ret.pageSize = uint(pageSize)
+	ret.segmentSize = uint(EDF_LENGTH) * uint(os.Getpagesize())
 
 	// Map the file
 	for i := int64(0); i < EDF_SIZE; i += int64(EDF_LENGTH) * pageSize {
@@ -62,11 +75,12 @@ func EdfMap(f *os.File, mode int) (*EdfFile, error) {
 			return nil, err
 		}
 	} else if mode == EDF_CREATE {
-		err = ret.truncate(2)
+		err = ret.truncate(4)
 		if err != nil {
 			return nil, err
 		}
 		ret.createHeader()
+		ret.writeContentsBlock()
 	} else {
 		err = fmt.Errorf("Unrecognised flags")
 	}
@@ -74,9 +88,14 @@ func EdfMap(f *os.File, mode int) (*EdfFile, error) {
 	return &ret, err
 }
 
-// getSegment returns the segment where page `i` exists
-func (e *EdfFile) getSegment(i int64) int64 {
-	return i / e.pageSize
+// GetRange returns the segment offset and range of
+// two positions in the file
+func (e *EdfFile) Range(byteStart uint, byteEnd uint) EdfRange {
+	var ret EdfRange
+	ret.SegmentStart = byteStart / e.segmentSize
+	ret.SegmentEnd = byteEnd / e.segmentSize
+	ret.ByteStart = byteStart % e.segmentSize
+	ret.ByteEnd = byteEnd % e.segmentSize
 }
 
 // VerifyHeader checks that this version of GoLearn can
@@ -111,6 +130,12 @@ func (e *EdfFile) createHeader() {
 	int32ToBytes(EDF_VERSION, e.m[0][4:8])
 	int32ToBytes(int32(os.Getpagesize()), e.m[0][8:12])
 	e.Sync()
+}
+
+// writeInitialData writes the initial data into the file
+// Unexported since it causes data loss
+func (e *EdfFile) writeInitialData() {
+
 }
 
 // Sync writes information to physical storage

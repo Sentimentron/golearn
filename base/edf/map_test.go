@@ -48,11 +48,11 @@ func TestFileCreate(t *testing.T) {
 				pageSize := int32FromBytes(blockBytes)
 				So(pageSize, ShouldEqual, os.Getpagesize())
 			})
-			// Check the file size is two * page size
+			// Check the file size is at least four * page size
 			info, err := tempFile.Stat()
 			Convey("File should be the right size", func() {
 				So(err, ShouldEqual, nil)
-				So(info.Size(), ShouldEqual, 2*os.Getpagesize())
+				So(info.Size(), ShouldBeGreaterThanOrEqualTo, 4*os.Getpagesize())
 			})
 		})
 	})
