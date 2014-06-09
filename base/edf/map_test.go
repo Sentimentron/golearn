@@ -36,7 +36,7 @@ func TestFileCreate(t *testing.T) {
 			Convey("Version should be correct", func() {
 				So(err, ShouldEqual, nil)
 				So(read, ShouldEqual, 4)
-				version := int32FromBytes(versionBytes)
+				version := uint32FromBytes(versionBytes)
 				So(version, ShouldEqual, EDF_VERSION)
 			})
 			// Read the block size
@@ -45,7 +45,7 @@ func TestFileCreate(t *testing.T) {
 			Convey("Page size should be correct", func() {
 				So(err, ShouldEqual, nil)
 				So(read, ShouldEqual, 4)
-				pageSize := int32FromBytes(blockBytes)
+				pageSize := uint32FromBytes(blockBytes)
 				So(pageSize, ShouldEqual, os.Getpagesize())
 			})
 			// Check the file size is at least four * page size

@@ -80,7 +80,6 @@ func EdfMap(f *os.File, mode int) (*EdfFile, error) {
 			return nil, err
 		}
 		ret.createHeader()
-		ret.writeContentsBlock()
 	} else {
 		err = fmt.Errorf("Unrecognised flags")
 	}
@@ -96,6 +95,7 @@ func (e *EdfFile) Range(byteStart uint, byteEnd uint) EdfRange {
 	ret.SegmentEnd = byteEnd / e.segmentSize
 	ret.ByteStart = byteStart % e.segmentSize
 	ret.ByteEnd = byteEnd % e.segmentSize
+	return ret
 }
 
 // VerifyHeader checks that this version of GoLearn can
@@ -108,13 +108,13 @@ func (e *EdfFile) VerifyHeader() error {
 		return fmt.Errorf("Invalid magic bytes")
 	}
 	// Check the file version
-	version := int32FromBytes(e.m[0][4:8])
+	version := uint32FromBytes(e.m[0][4:8])
 	if version != EDF_VERSION {
 		return fmt.Errorf("Unsupported version: %u", version)
 	}
 	// Check the page size
-	pageSize := int32FromBytes(e.m[0][8:12])
-	if pageSize != int32(os.Getpagesize()) {
+	pageSize := uint32FromBytes(e.m[0][8:12])
+	if pageSize != uint32(os.Getpagesize()) {
 		return fmt.Errorf("Unsupported page size: (file: %d, system: %d", pageSize, os.Getpagesize())
 	}
 	return nil
@@ -127,8 +127,8 @@ func (e *EdfFile) createHeader() {
 	e.m[0][1] = byte('O')
 	e.m[0][2] = byte('L')
 	e.m[0][3] = byte('N')
-	int32ToBytes(EDF_VERSION, e.m[0][4:8])
-	int32ToBytes(int32(os.Getpagesize()), e.m[0][8:12])
+	uint32ToBytes(EDF_VERSION, e.m[0][4:8])
+	uint32ToBytes(uint32(os.Getpagesize()), e.m[0][8:12])
 	e.Sync()
 }
 
