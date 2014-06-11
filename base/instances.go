@@ -272,7 +272,7 @@ func (inst *Instances) CountAttrValues(a Attribute) map[string]int {
 // IMPORTANT: calls panic() if the attribute index of at cannot be determined.
 // Use GetAttrIndex(at) and check for a non-zero return value.
 // STATUS: Compatable
-func (inst *Instances) DecomposeOnAttributeValues(at Attribute) map[string]*Instances {
+func (inst *Instances) DecomposeOnAttributeValues(at Attribute) map[string]UpdatableDataGrid {
 	// Find the attribute we're decomposing on
 	attrIndex := inst.GetAttrIndex(at)
 	if attrIndex == -1 {
@@ -288,30 +288,24 @@ func (inst *Instances) DecomposeOnAttributeValues(at Attribute) map[string]*Inst
 		newAttrs = append(newAttrs, a)
 	}
 	// Create the return map, several counting maps
-	ret := make(map[string]*Instances)
+	ret := make(map[string]UpdatableDataGrid)
 	counts := inst.CountAttrValues(at) // So we know what to allocate
-	rows := make(map[string]int)
 	for k := range counts {
 		tmp := NewInstances(newAttrs, counts[k])
 		ret[k] = tmp
 	}
-	for i := 0; i < inst.Rows; i++ {
-		newAttrCounter := 0
-		sysVal := inst.get(i, attrIndex)
-		convVal := PackFloatToBytes(sysVal)
-		classVar := at.GetStringFromSysVal(convVal)
-		dest := ret[classVar]
-		destRow := rows[classVar]
-		for j := 0; j < inst.Cols; j++ {
-			a := inst.attributes[j]
-			if a.Equals(at) {
-				continue
-			}
-			dest.set(destRow, newAttrCounter, inst.get(i, j))
-			newAttrCounter++
+
+	// Range over and filter the attributes, add to appropriate row
+	inst.MapOverRows(inst.GetAttrs(), func(row map[Attribute][]byte, i int) (bool, error) {
+		attrVal := at.GetStringFromSysVal(row[at])
+		delete(row, at)
+		err := ret[attrVal].AppendRow(row)
+		if err != nil {
+			panic(err)
 		}
-		rows[classVar]++
-	}
+		return true, nil
+	})
+
 	return ret
 }
 
@@ -401,10 +395,10 @@ func (inst *Instances) AppendRow(row map[Attribute][]byte) error {
 // MapOverRows passes each row map into a function used for training
 // Within the closure, return `false, nil` to indicate the end of
 // processing, or return `_, error` to indicate a problem.
-func (inst *Instances) MapOverRows(attrs map[int]Attribute, mapFunc func(map[Attribute][]byte) (bool, error)) error {
+func (inst *Instances) MapOverRows(attrs map[int]Attribute, mapFunc func(map[Attribute][]byte, int) (bool, error)) error {
 	for i := 0; i < inst.Rows; i++ {
 		row := inst.GetRow(attrs, i)
-		ok, err := mapFunc(row)
+		ok, err := mapFunc(row, i)
 		if err != nil {
 			return err
 		}
@@ -549,12 +543,19 @@ func (inst *Instances) SelectAttributes(attrs []Attribute) DataGrid {
 	return ret
 }
 
+// Size returns the current size of this set of Instances
+// order is column, then row
+func (inst *Instances) Size() (uint64, uint64) {
+	return uint64(len(inst.attributes)), uint64(inst.rowCount)
+}
+
 // Shuffle randomizes the row order in place
-func (inst *Instances) Shuffle() {
+func (inst *Instances) Shuffle() FixedDataGrid {
 	for i := 0; i < inst.Rows; i++ {
 		j := rand.Intn(i + 1)
 		inst.swapRows(i, j)
 	}
+	return inst
 }
 
 // Equal checks whether a given Instance set is exactly the same

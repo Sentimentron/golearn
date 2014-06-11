@@ -37,3 +37,14 @@ func PackFloatToBytes(val float64) []byte {
 func UnpackBytesToFloat(val []byte) float64 {
 	return math.Float64frombits(UnpackBytesToU64(val))
 }
+
+func GeneratePredictionVector(from FixedDataGrid) FixedDataGrid {
+	classAttrsMap := from.GetClassAttrs()
+	classAttrs := make([]Attribute, 0)
+	for attr := range classAttrsMap {
+		classAttrs = append(classAttrs, classAttrsMap[attr])
+	}
+	_, rowCount := from.Size()
+	ret := NewInstances(classAttrs, int(rowCount))
+	return ret
+}
