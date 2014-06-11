@@ -1,23 +1,5 @@
 package edf
 
-import ()
-
-func int32ToBytes(in int32, out []byte) {
-	out[3] = byte((in & (0xFF << 0)) >> 0)
-	out[2] = byte((in & (0xFF << 8)) >> 8)
-	out[1] = byte((in & (0xFF << 16)) >> 16)
-	out[0] = byte((int64(in) & (0xFF << 24)) >> 24)
-}
-
-func int32FromBytes(in []byte) int32 {
-	out := int32(0)
-	out |= int32(in[3]) << 0
-	out |= int32(in[2]) << 8
-	out |= int32(in[1]) << 16
-	out |= int32(in[0]) << 24
-	return out
-}
-
 func uint64ToBytes(in uint64, out []byte) {
 	var i uint64
 	for i = 0; i < 8; i++ {
@@ -28,8 +10,23 @@ func uint64ToBytes(in uint64, out []byte) {
 func uint64FromBytes(in []byte) uint64 {
 	var i uint64
 	out := uint64(0)
-	for i := 0; i < 8; i++ {
+	for i = 0; i < 8; i++ {
 		out |= uint64(in[7-i] << uint64(i*0x8))
 	}
 	return out
+}
+func uint32FromBytes(in []byte) uint32 {
+	ret := uint32(0)
+	ret |= uint32(in[0]) << 24
+	ret |= uint32(in[1]) << 16
+	ret |= uint32(in[2]) << 8
+	ret |= uint32(in[3])
+	return ret
+}
+
+func uint32ToBytes(in uint32, out []byte) {
+	out[0] = byte(in & (0xFF << 24) >> 24)
+	out[1] = byte(in & (0xFF << 16) >> 16)
+	out[2] = byte(in & (0xFF << 8) >> 8)
+	out[3] = byte(in & 0xFF)
 }

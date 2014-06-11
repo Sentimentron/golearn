@@ -3,7 +3,6 @@ package edf
 // map.go:    handles mmaping, truncation, header creation, verification,
 //            creation of initial thread contents block (todo)
 //            creation of initial thread metadata block (todo)
-//            creation of initial free bitmap (todo)
 // thread.go: handles extending thread contents block (todo)
 //            extending thread metadata block (todo), adding threads (todo),
 //            retrieving the segments and offsets relevant to a thread (todo)

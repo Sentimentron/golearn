@@ -11,18 +11,18 @@ import (
 type EdfFile struct {
 	f           *os.File
 	m           []mmap.Mmap
-	segmentSize uint
-	pageSize    uint
+	segmentSize uint64
+	pageSize    uint64
 }
 
 // EdfRange represents a start and an end segment
 // mapped in an EdfFile and also the byte offsets
 // within that segment
 type EdfRange struct {
-	SegmentStart uint
-	SegmentEnd   uint
-	ByteStart    uint
-	ByteEnd      uint
+	SegmentStart uint64
+	SegmentEnd   uint64
+	ByteStart    uint64
+	ByteEnd      uint64
 }
 
 // EdfMap takes an os.File and returns an EdfMappedFile
@@ -55,8 +55,8 @@ func EdfMap(f *os.File, mode int) (*EdfFile, error) {
 	// Get the page size
 	pageSize := int64(os.Getpagesize())
 	// Segment size is the size of each mapped region
-	ret.pageSize = uint(pageSize)
-	ret.segmentSize = uint(EDF_LENGTH) * uint(os.Getpagesize())
+	ret.pageSize = uint64(pageSize)
+	ret.segmentSize = uint64(EDF_LENGTH) * uint64(os.Getpagesize())
 
 	// Map the file
 	for i := int64(0); i < EDF_SIZE; i += int64(EDF_LENGTH) * pageSize {
@@ -80,7 +80,7 @@ func EdfMap(f *os.File, mode int) (*EdfFile, error) {
 			return nil, err
 		}
 		ret.createHeader()
-		ret.writeContentsBlock()
+		ret.writeInitialData()
 	} else {
 		err = fmt.Errorf("Unrecognised flags")
 	}
@@ -90,12 +90,19 @@ func EdfMap(f *os.File, mode int) (*EdfFile, error) {
 
 // GetRange returns the segment offset and range of
 // two positions in the file
-func (e *EdfFile) Range(byteStart uint, byteEnd uint) EdfRange {
+func (e *EdfFile) Range(byteStart uint64, byteEnd uint64) EdfRange {
 	var ret EdfRange
 	ret.SegmentStart = byteStart / e.segmentSize
 	ret.SegmentEnd = byteEnd / e.segmentSize
 	ret.ByteStart = byteStart % e.segmentSize
 	ret.ByteEnd = byteEnd % e.segmentSize
+	return ret
+}
+
+// GetPageRange returns the segment offset and range of
+// two pages in the file
+func (e *EdfFile) GetPageRange(pageStart uint64, pageEnd uint64) EdfRange {
+	return e.Range(pageStart*e.pageSize, pageEnd*e.pageSize+e.pageSize)
 }
 
 // VerifyHeader checks that this version of GoLearn can
@@ -108,13 +115,13 @@ func (e *EdfFile) VerifyHeader() error {
 		return fmt.Errorf("Invalid magic bytes")
 	}
 	// Check the file version
-	version := int32FromBytes(e.m[0][4:8])
+	version := uint32FromBytes(e.m[0][4:8])
 	if version != EDF_VERSION {
 		return fmt.Errorf("Unsupported version: %u", version)
 	}
 	// Check the page size
-	pageSize := int32FromBytes(e.m[0][8:12])
-	if pageSize != int32(os.Getpagesize()) {
+	pageSize := uint32FromBytes(e.m[0][8:12])
+	if pageSize != uint32(os.Getpagesize()) {
 		return fmt.Errorf("Unsupported page size: (file: %d, system: %d", pageSize, os.Getpagesize())
 	}
 	return nil
@@ -127,15 +134,86 @@ func (e *EdfFile) createHeader() {
 	e.m[0][1] = byte('O')
 	e.m[0][2] = byte('L')
 	e.m[0][3] = byte('N')
-	int32ToBytes(EDF_VERSION, e.m[0][4:8])
-	int32ToBytes(int32(os.Getpagesize()), e.m[0][8:12])
+	uint32ToBytes(EDF_VERSION, e.m[0][4:8])
+	uint32ToBytes(uint32(os.Getpagesize()), e.m[0][8:12])
 	e.Sync()
 }
 
-// writeInitialData writes the initial data into the file
-// Unexported since it causes data loss
+// writeInitialData writes system thread information
 func (e *EdfFile) writeInitialData() {
+	// Thread information goes in the second disk block
+	e.incrementThreadCount()
+	// 8 bytes is left blank for the successor
+	threadOffset := e.Range(e.pageSize+8, (e.pageSize<<2)-1)
+	segment := e.m[threadOffset.SegmentStart]
+	segment = segment[threadOffset.ByteStart:threadOffset.ByteEnd]
+	// Write the declaration for the "system" thread which stores all of the
+	// information on block allocations
+	threadStr := "SYSTEM"
+	threadLength := uint32(6)
+	// Store the string length first
+	uint32ToBytes(threadLength, segment)
+	segment = segment[4:]
+	// Copy the string
+	copy(segment, threadStr)
+	segment = segment[len(threadStr):]
+	// Write this thread number
+	uint32ToBytes(1, segment)
+}
 
+// GetThreadCount returns the number of threads in this file
+func (e *EdfFile) GetThreadCount() uint32 {
+	// The number of threads is stored in bytes 12-16 in the header
+	return uint32FromBytes(e.m[0][12:])
+}
+
+// incrementThreadCount increments the record of the number
+// of threads in this file
+func (e *EdfFile) incrementThreadCount() uint32 {
+	cur := e.GetThreadCount()
+	cur += 1
+	uint32ToBytes(cur, e.m[0][12:])
+	return cur
+}
+
+// getThreads returns the thread identifier -> name map
+func (e *EdfFile) GetThreads() (map[uint32]string, error) {
+	ret := make(map[uint32]string)
+	count := e.GetThreadCount()
+	// The starting block
+	block := uint64(1)
+	for {
+		// Decode the block offset
+		r := e.GetPageRange(block, block)
+		if r.SegmentStart != r.SegmentEnd {
+			return nil, fmt.Errorf("Thread range split across segments")
+		}
+		bytes := e.m[r.SegmentStart]
+		bytes = bytes[r.ByteStart:r.ByteEnd]
+		// The first 8 bytes say where to go next
+		block = uint64FromBytes(bytes)
+		bytes = bytes[8:]
+
+		for {
+			length := uint32FromBytes(bytes)
+			if length == 0 {
+				break
+			}
+			t := &Thread{}
+			size := t.Deserialize(bytes)
+			bytes = bytes[size:]
+			ret[t.id] = t.name[0:len(t.name)]
+		}
+		// If next block offset is zero, no more threads to read
+		if block == 0 {
+			break
+		}
+	}
+	// Hey? What's wrong with you!
+	if len(ret) != int(count) {
+		return ret, fmt.Errorf("Thread mismatch: %d/%d, indicates possible corruption", len(ret), count)
+	}
+	return ret, nil
 }
 
 // Sync writes information to physical storage

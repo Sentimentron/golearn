@@ -36,7 +36,7 @@ func TestFileCreate(t *testing.T) {
 			Convey("Version should be correct", func() {
 				So(err, ShouldEqual, nil)
 				So(read, ShouldEqual, 4)
-				version := int32FromBytes(versionBytes)
+				version := uint32FromBytes(versionBytes)
 				So(version, ShouldEqual, EDF_VERSION)
 			})
 			// Read the block size
@@ -45,7 +45,7 @@ func TestFileCreate(t *testing.T) {
 			Convey("Page size should be correct", func() {
 				So(err, ShouldEqual, nil)
 				So(read, ShouldEqual, 4)
-				pageSize := int32FromBytes(blockBytes)
+				pageSize := uint32FromBytes(blockBytes)
 				So(pageSize, ShouldEqual, os.Getpagesize())
 			})
 			// Check the file size is at least four * page size
@@ -53,6 +53,37 @@ func TestFileCreate(t *testing.T) {
 			Convey("File should be the right size", func() {
 				So(err, ShouldEqual, nil)
 				So(info.Size(), ShouldBeGreaterThanOrEqualTo, 4*os.Getpagesize())
+			})
+		})
+	})
+}
+
+func TestFileThreadCounter(t *testing.T) {
+	Convey("Creating a non-existent file should succeed", t, func() {
+		tempFile, err := ioutil.TempFile(os.TempDir(), "TestFileCreate")
+		So(err, ShouldEqual, nil)
+		Convey("Mapping the file should suceed", func() {
+			mapping, err := EdfMap(tempFile, EDF_CREATE)
+			So(err, ShouldEqual, nil)
+			Convey("The file should have one thread to start with", func() {
+				count := mapping.GetThreadCount()
+				So(count, ShouldEqual, 1)
+				Convey("That thread should be called SYSTEM", func() {
+					threads, err := mapping.GetThreads()
+					So(err, ShouldEqual, nil)
+					So(len(threads), ShouldEqual, 1)
+					So(threads[1], ShouldEqual, "SYSTEM")
+
+				})
+			})
+			Convey("Incrementing the threadcount should result in two threads", func() {
+				mapping.incrementThreadCount()
+				count := mapping.GetThreadCount()
+				So(count, ShouldEqual, 2)
+				Convey("Thread information should indicate corruption", func() {
+					_, err := mapping.GetThreads()
+					So(err, ShouldNotEqual, nil)
+				})
 			})
 		})
 	})
