@@ -15,13 +15,13 @@ type ContentEntry struct {
 	End uint32
 }
 
-func (e *EdfFile) extend(additionalBytes uint32) error {
+func (e *EdfFile) extend(additionalPages uint32) error {
 	fileInfo, err := e.f.Stat()
 	if err != nil {
 		panic(err)
 	}
-	newSize := fileInfo.Size() + int64(additionalBytes)
-	return e.truncate(newSize)
+	newSize := uint64(fileInfo.Size())/e.pageSize + uint64(additionalPages)
+	return e.truncate(int64(newSize))
 }
 
 func (e *EdfFile) getFreeMapSize() uint64 {
@@ -42,8 +42,9 @@ func (e *EdfFile) FixedAlloc(bytesRequested uint32) (EdfRange, error) {
 func (e *EdfFile) getContiguousOffset(pagesRequested uint32) (uint32, error) {
 	// Create the free bitmap
 	bitmap := make([]bool, e.getFreeMapSize())
-	bitmap[0] = true
-	bitmap[1] = true
+	for i := 0; i < 4; i++ {
+		bitmap[i] = true
+	}
 	// Traverse the contents table and build a free bitmap
 	block := uint64(2)
 	for {
@@ -70,9 +71,13 @@ func (e *EdfFile) getContiguousOffset(pagesRequested uint32) (uint32, error) {
 			start := uint32FromBytes(bytes[i+4:])
 			end := uint32FromBytes(bytes[i+8:])
 			for j := start; j <= end; j++ {
+				if int(j) >= len(bitmap) {
+					break
+				}
 				bitmap[j] = true
 			}
 		}
+		break
 	}
 	// Look through the freemap and find a good spot
 	for i := 0; i < len(bitmap); i++ {
@@ -80,7 +85,7 @@ func (e *EdfFile) getContiguousOffset(pagesRequested uint32) (uint32, error) {
 			continue
 		}
 		for j := i; j < len(bitmap); j++ {
-			if bitmap[j] {
+			if !bitmap[j] {
 				diff := j - 1 - i
 				if diff > int(pagesRequested) {
 					return uint32(i), nil
@@ -183,11 +188,19 @@ func (e *EdfFile) AllocPages(pagesRequested uint32, thread uint32) (EdfRange, er
 	var ret EdfRange
 	var toc ContentEntry
 
+	// Parameter check
+	if pagesRequested == 0 {
+		return ret, fmt.Errorf("Must request some pages")
+	}
+	if thread == 0 {
+		return ret, fmt.Errorf("Need a valid page identifier")
+	}
+
 	// Find the next available offset
 	startBlock, err := e.getContiguousOffset(pagesRequested)
 	if startBlock == 0 && err == nil {
 		// Increase the size of the file if necessary
-		e.extend(pagesRequested * uint32(e.pageSize))
+		e.extend(pagesRequested)
 		return e.AllocPages(pagesRequested, thread)
 	} else if err != nil {
 		return ret, err
@@ -200,7 +213,45 @@ func (e *EdfFile) AllocPages(pagesRequested uint32, thread uint32) (EdfRange, er
 	err = e.addToTOC(&toc, true)
 
 	// Compute the range
-	ret = e.GetPageRange(uint64(startBlock), uint64(pagesRequested))
+	ret = e.GetPageRange(uint64(startBlock), uint64(startBlock+pagesRequested))
 
 	return ret, err
+}
+
+// GetThreadBlocks returns EdfRanges containing blocks assigned to a given thread
+func (e *EdfFile) GetThreadBlocks(thread uint32) ([]EdfRange, error) {
+	ret := make([]EdfRange, 0)
+	// Traverse the contents table
+	block := uint64(2)
+	for {
+		// Get the range for this block
+		r := e.GetPageRange(block, block)
+		if r.SegmentStart != r.SegmentEnd {
+			return nil, fmt.Errorf("Contents block split across segments")
+		}
+		bytes := e.m[r.SegmentStart]
+		bytes = bytes[r.ByteStart : r.ByteEnd+1]
+		// Get the address of the next contents block
+		block = uint64FromBytes(bytes)
+		bytes = bytes[8:]
+		// Look for matching contents entries
+		for {
+			threadId := uint32FromBytes(bytes)
+			if threadId == thread {
+				blockStart := uint32FromBytes(bytes[4:])
+				blockEnd := uint32FromBytes(bytes[8:])
+				r = e.GetPageRange(uint64(blockStart), uint64(blockEnd))
+				ret = append(ret, r)
+			}
+			bytes = bytes[12:]
+			if len(bytes) < 12 {
+				break
+			}
+		}
+		// Time to stop
+		if block == 0 {
+			break
+		}
+	}
+	return ret, nil
 }
