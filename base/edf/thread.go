@@ -1,5 +1,9 @@
 package edf
 
+import (
+	"fmt"
+)
+
 // Threads are streams of data encapsulated within the file
 type Thread struct {
 	name string
@@ -47,4 +51,37 @@ func (t *Thread) Deserialize(out []byte) int {
 	t.id = uint32FromBytes(out)
 	ret += 4
 	return ret
+}
+
+// WriteThread inserts a new thread into the EdfFile
+func (e *EdfFile) WriteThread(t *Thread) error {
+	// Resolve the initial Thread block
+	blockRange := e.GetPageRange(1, 1)
+	if blockRange.SegmentStart != blockRange.SegmentEnd {
+		return fmt.Errorf("Thread block split across segments!")
+	}
+	bytes := e.m[blockRange.SegmentStart][blockRange.ByteStart : blockRange.ByteEnd+1]
+	// Skip the first 8 bytes, since we don't support multiple thread blocks yet
+	bytes = bytes[8:]
+	cur := 0
+	for {
+		length := uint32FromBytes(bytes)
+		if length == 0 {
+			break
+		}
+		cur += 8 + int(length)
+		bytes = bytes[8+length:]
+	}
+	// cur should have now found an empty offset
+	// Check that we have enough room left to insert
+	roomLeft := len(bytes)
+	roomNeeded := t.GetSpaceNeeded()
+	if roomLeft < roomNeeded {
+		return fmt.Errorf("Not enough space available")
+	}
+	// If everything's fine, serialise
+	t.Serialize(bytes)
+	// Increment thread count
+	e.incrementThreadCount()
+	return nil
 }

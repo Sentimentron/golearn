@@ -80,7 +80,7 @@ func EdfMap(f *os.File, mode int) (*EdfFile, error) {
 			return nil, err
 		}
 		ret.createHeader()
-		ret.writeInitialData()
+		err = ret.writeInitialData()
 	} else {
 		err = fmt.Errorf("Unrecognised flags")
 	}
@@ -102,7 +102,7 @@ func (e *EdfFile) Range(byteStart uint64, byteEnd uint64) EdfRange {
 // GetPageRange returns the segment offset and range of
 // two pages in the file
 func (e *EdfFile) GetPageRange(pageStart uint64, pageEnd uint64) EdfRange {
-	return e.Range(pageStart*e.pageSize, pageEnd*e.pageSize+e.pageSize)
+	return e.Range(pageStart*e.pageSize, pageEnd*e.pageSize+e.pageSize-1)
 }
 
 // VerifyHeader checks that this version of GoLearn can
@@ -140,25 +140,11 @@ func (e *EdfFile) createHeader() {
 }
 
 // writeInitialData writes system thread information
-func (e *EdfFile) writeInitialData() {
-	// Thread information goes in the second disk block
-	e.incrementThreadCount()
-	// 8 bytes is left blank for the successor
-	threadOffset := e.Range(e.pageSize+8, (e.pageSize<<2)-1)
-	segment := e.m[threadOffset.SegmentStart]
-	segment = segment[threadOffset.ByteStart:threadOffset.ByteEnd]
-	// Write the declaration for the "system" thread which stores all of the
-	// information on block allocations
-	threadStr := "SYSTEM"
-	threadLength := uint32(6)
-	// Store the string length first
-	uint32ToBytes(threadLength, segment)
-	segment = segment[4:]
-	// Copy the string
-	copy(segment, threadStr)
-	segment = segment[len(threadStr):]
-	// Write this thread number
-	uint32ToBytes(1, segment)
+func (e *EdfFile) writeInitialData() error {
+	var t Thread
+	t.name = "SYSTEM"
+	t.id = 1
+	return e.WriteThread(&t)
 }
 
 // GetThreadCount returns the number of threads in this file
