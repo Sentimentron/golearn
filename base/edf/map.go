@@ -144,7 +144,14 @@ func (e *EdfFile) writeInitialData() error {
 	var t Thread
 	t.name = "SYSTEM"
 	t.id = 1
-	return e.WriteThread(&t)
+	err := e.WriteThread(&t)
+	if err != nil {
+		return err
+	}
+	t.name = "FIXED"
+	t.id = 2
+	err = e.WriteThread(&t)
+	return err
 }
 
 // GetThreadCount returns the number of threads in this file

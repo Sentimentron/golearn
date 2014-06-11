@@ -65,21 +65,21 @@ func TestFileThreadCounter(t *testing.T) {
 		Convey("Mapping the file should suceed", func() {
 			mapping, err := EdfMap(tempFile, EDF_CREATE)
 			So(err, ShouldEqual, nil)
-			Convey("The file should have one thread to start with", func() {
-				count := mapping.GetThreadCount()
-				So(count, ShouldEqual, 1)
-				Convey("That thread should be called SYSTEM", func() {
-					threads, err := mapping.GetThreads()
-					So(err, ShouldEqual, nil)
-					So(len(threads), ShouldEqual, 1)
-					So(threads[1], ShouldEqual, "SYSTEM")
-
-				})
-			})
-			Convey("Incrementing the threadcount should result in two threads", func() {
-				mapping.incrementThreadCount()
+			Convey("The file should have two threads to start with", func() {
 				count := mapping.GetThreadCount()
 				So(count, ShouldEqual, 2)
+				Convey("They should be SYSTEM and FIXED", func() {
+					threads, err := mapping.GetThreads()
+					So(err, ShouldEqual, nil)
+					So(len(threads), ShouldEqual, 2)
+					So(threads[1], ShouldEqual, "SYSTEM")
+					So(threads[2], ShouldEqual, "FIXED")
+				})
+			})
+			Convey("Incrementing the threadcount should result in three threads", func() {
+				mapping.incrementThreadCount()
+				count := mapping.GetThreadCount()
+				So(count, ShouldEqual, 3)
 				Convey("Thread information should indicate corruption", func() {
 					_, err := mapping.GetThreads()
 					So(err, ShouldNotEqual, nil)
