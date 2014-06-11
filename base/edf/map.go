@@ -132,10 +132,29 @@ func (e *EdfFile) createHeader() {
 	e.Sync()
 }
 
-// writeInitialData writes the initial data into the file
-// Unexported since it causes data loss
+// writeInitialData writes system thread information
 func (e *EdfFile) writeInitialData() {
-
+	// Thread information goes in the second disk block
+	// 8 bytes is left blank for the successor
+	threadOffset := e.Range(e.pageSize + 8, (e.pageSize << 2) - 1)
+	segment := e.m[threadOffset.SegmentStart]
+	segment = segment[threadOffset.ByteStart:threadOffset.ByteEnd]
+	// Write the declaration for the "system" thread which stores all of the
+	// information on block allocations
+	threadStr := "SYSTEM"
+	threadLength := uint32(6)
+	// Store the string length first
+	uint32ToBytes(threadLength, segment)
+	segment = segment[4:]
+	// Copy the string
+	copy(segment, threadStr)
+	segment = segment[6:]
+	// Write the location of the contents block
+	// (0x2)
+	uint32ToBytes(2, segment)
+	// Write this thread number
+	segment = segment[4:]
+	uint32ToBytes(1, segment)
 }
 
 // Sync writes information to physical storage
