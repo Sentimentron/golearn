@@ -227,7 +227,7 @@ func (e *EdfFile) truncate(size int64) error {
 	newSize := pageSize * size
 
 	// Synchronise
-	e.Sync()
+	// e.Sync()
 
 	// Double-check that we're not reducing file size
 	fileInfo, err := e.f.Stat()

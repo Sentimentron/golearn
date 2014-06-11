@@ -111,7 +111,7 @@ func (e *EdfFile) addNewContentsBlock() error {
 	}
 
 	// Traverse the contents blocks looking for one with a blank NEXT pointer
-	block := uint64(0)
+	block := uint64(2)
 	for {
 		// Get the range for this block
 		r := e.GetPageRange(block, block)
@@ -124,6 +124,7 @@ func (e *EdfFile) addNewContentsBlock() error {
 		block = uint64FromBytes(bytes)
 		if block == 0 {
 			uint64ToBytes(uint64(startBlock), bytes)
+			break
 		}
 	}
 	// Add to the next available TOC space
@@ -144,7 +145,7 @@ func (e *EdfFile) addToTOC(c *ContentEntry, extend bool) error {
 			return fmt.Errorf("Contents block split across segments")
 		}
 		bytes := e.m[r.SegmentStart]
-		bytes = bytes[r.ByteStart : r.ByteEnd+1]
+		bytes = bytes[r.ByteStart:r.ByteEnd]
 		// Get the address of the next contents block
 		block = uint64FromBytes(bytes)
 		if block != 0 {
@@ -165,6 +166,7 @@ func (e *EdfFile) addToTOC(c *ContentEntry, extend bool) error {
 				if extend {
 					// Append a new contents block and try again
 					e.addNewContentsBlock()
+					return e.addToTOC(c, false)
 				} else {
 					return fmt.Errorf("Can't add to contents: no space available")
 				}
