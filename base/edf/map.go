@@ -182,7 +182,7 @@ func (e *EdfFile) GetThreads() (map[uint32]string, error) {
 			return nil, fmt.Errorf("Thread range split across segments")
 		}
 		bytes := e.m[r.SegmentStart]
-		bytes = bytes[r.ByteStart:r.ByteEnd]
+		bytes = bytes[r.ByteStart : r.ByteEnd+1]
 		// The first 8 bytes say where to go next
 		block = uint64FromBytes(bytes)
 		bytes = bytes[8:]
