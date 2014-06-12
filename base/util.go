@@ -1,6 +1,7 @@
 package base
 
 import (
+	"fmt"
 	"math"
 )
 
@@ -38,7 +39,7 @@ func UnpackBytesToFloat(val []byte) float64 {
 	return math.Float64frombits(UnpackBytesToU64(val))
 }
 
-func GeneratePredictionVector(from FixedDataGrid) FixedDataGrid {
+func GeneratePredictionVector(from FixedDataGrid) UpdatableDataGrid {
 	classAttrsMap := from.GetClassAttrs()
 	classAttrs := make([]Attribute, 0)
 	for attr := range classAttrsMap {
@@ -47,4 +48,23 @@ func GeneratePredictionVector(from FixedDataGrid) FixedDataGrid {
 	_, rowCount := from.Size()
 	ret := NewInstances(classAttrs, int(rowCount))
 	return ret
+}
+
+func GetClass(from FixedDataGrid, row int) (string, error) {
+
+	var classAttr Attribute
+
+	classAttrs := from.GetClassAttrs()
+	if len(classAttrs) > 1 {
+		return "unknown", fmt.Errorf("Multiple classes defined")
+	}
+
+	for i := range classAttrs {
+		classAttr = classAttrs[i]
+	}
+
+	rowVals := from.GetRow(classAttrs, row)
+
+	return classAttr.GetStringFromSysVal(rowVals[classAttr]), nil
+
 }

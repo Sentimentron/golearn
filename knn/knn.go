@@ -4,9 +4,7 @@
 package knn
 
 import (
-	"github.com/gonum/matrix/mat64"
 	base "github.com/sjwhitworth/golearn/base"
-	pairwiseMetrics "github.com/sjwhitworth/golearn/metrics/pairwise"
 	util "github.com/sjwhitworth/golearn/utilities"
 )
 
@@ -32,69 +30,69 @@ func (KNN *KNNClassifier) Fit(trainingData *base.Instances) {
 	KNN.TrainingData = trainingData
 }
 
-// Returns a classification for the vector, based on a vector input, using the KNN algorithm.
-// See http://en.wikipedia.org/wiki/K-nearest_neighbors_algorithm.
-func (KNN *KNNClassifier) PredictOne(vector []float64) string {
+func (KNN *KNNClassifier) Predict(what *base.Instances) base.UpdatableDataGrid {
+	var classAttr base.Attribute
+	// Generate the prediction vector
+	ret := base.GeneratePredictionVector(what)
 
-	rows := KNN.TrainingData.Rows
+	// Process the attributes
+	classAttrs := what.GetClassAttrs()
+	normalAttrs := what.GetAttrs()
+	allAttrs := what.GetAttrs()
+
+	// Weed out all the classes
+	for attr := range classAttrs {
+		classAttr = classAttrs[attr]
+		delete(normalAttrs, attr)
+	}
+	// Weed out all the non-FloatAttributes
+	for attr := range allAttrs {
+		if _, ok := allAttrs[attr].(*base.FloatAttribute); !ok {
+			delete(normalAttrs, attr)
+		}
+	}
+
+	// Map over the rows
+
 	rownumbers := make(map[int]float64)
-	labels := make([]string, 0)
-	maxmap := make(map[string]int)
+	what.MapOverRows(normalAttrs, func(pred map[base.Attribute][]byte, predRow int) (bool, error) {
+		maxmap := make(map[string]int)
+		// For each item in training...
+		KNN.TrainingData.MapOverRows(normalAttrs, func(train map[base.Attribute][]byte, trainRow int) (bool, error) {
+			distance := 0.0
+			for a := range train {
+				thisVal := base.UnpackBytesToFloat(train[a])
+				otherVal := base.UnpackBytesToFloat(pred[a])
+				distance += (thisVal - otherVal) * (thisVal - otherVal)
+			}
+			rownumbers[trainRow] = distance
+			return true, nil
+		})
 
-	convertedVector := util.FloatsToMatrix(vector)
+		sorted := util.SortIntMap(rownumbers)
+		values := sorted[:KNN.NearestNeighbours]
+		for _, elem := range values {
+			label, _ := base.GetClass(KNN.TrainingData, elem)
+			maxmap[label]++
+		}
 
-	// Check what distance function we are using
-	switch KNN.DistanceFunc {
-	case "euclidean":
-		{
-			euclidean := pairwiseMetrics.NewEuclidean()
-			for i := 0; i < rows; i++ {
-				row := KNN.TrainingData.GetRowVectorWithoutClass(i)
-				rowMat := util.FloatsToMatrix(row)
-				distance := euclidean.Distance(rowMat, convertedVector)
-				rownumbers[i] = distance
+		maxClass := ""
+		maxVal := 0
+		for i := range maxmap {
+			if maxmap[i] > maxVal {
+				maxClass = i
+				maxVal = maxmap[i]
 			}
 		}
-	case "manhattan":
-		{
-			manhattan := pairwiseMetrics.NewEuclidean()
-			for i := 0; i < rows; i++ {
-				row := KNN.TrainingData.GetRowVectorWithoutClass(i)
-				rowMat := util.FloatsToMatrix(row)
-				distance := manhattan.Distance(rowMat, convertedVector)
-				rownumbers[i] = distance
-			}
-		}
-	}
 
-	sorted := util.SortIntMap(rownumbers)
-	values := sorted[:KNN.NearestNeighbours]
+		ret.AppendRow(map[base.Attribute][]byte{classAttr: classAttr.GetSysValFromString(maxClass)})
+		return true, nil
+	})
 
-	for _, elem := range values {
-		label := KNN.TrainingData.GetClass(elem)
-		labels = append(labels, label)
-
-		if _, ok := maxmap[label]; ok {
-			maxmap[label] += 1
-		} else {
-			maxmap[label] = 1
-		}
-	}
-
-	sortedlabels := util.SortStringMap(maxmap)
-	label := sortedlabels[0]
-
-	return label
-}
-
-func (KNN *KNNClassifier) Predict(what *base.Instances) *base.Instances {
-	ret := what.GeneratePredictionVector()
-	for i := 0; i < what.Rows; i++ {
-		ret.SetAttrStr(i, 0, KNN.PredictOne(what.GetRowVectorWithoutClass(i)))
-	}
 	return ret
 }
 
+/*
 //A KNN Regressor. Consists of a data matrix, associated result variables in the same order as the matrix, and a name.
 type KNNRegressor struct {
 	base.BaseEstimator
@@ -161,4 +159,4 @@ func (KNN *KNNRegressor) Predict(vector *mat64.Dense, K int) float64 {
 
 	average := sum / float64(K)
 	return average
-}
+}*/
