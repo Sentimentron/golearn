@@ -57,11 +57,12 @@ func (t *Thread) Deserialize(out []byte) int {
 func (e *EdfFile) WriteThread(t *Thread) error {
 	// Resolve the initial Thread block
 	blockRange := e.GetPageRange(1, 1)
-	if blockRange.SegmentStart != blockRange.SegmentEnd {
+	if blockRange.Start.Segment != blockRange.End.Segment {
 		return fmt.Errorf("Thread block split across segments!")
 	}
-	bytes := e.m[blockRange.SegmentStart][blockRange.ByteStart : blockRange.ByteEnd+1]
+	bytes := e.m[blockRange.Start.Segment][blockRange.Start.Byte : blockRange.End.Byte+1]
 	// Skip the first 8 bytes, since we don't support multiple thread blocks yet
+	// TODO: fix that
 	bytes = bytes[8:]
 	cur := 0
 	for {

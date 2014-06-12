@@ -17,7 +17,8 @@ func TestAllocFixed(t *testing.T) {
 			Convey("Allocation should suceed", func() {
 				r, err := mapping.AllocPages(1, 2)
 				So(err, ShouldEqual, nil)
-				So(r.ByteStart, ShouldEqual, 4*os.Getpagesize())
+				So(r.Start.Byte, ShouldEqual, 4*os.Getpagesize())
+				So(r.Start.Segment, ShouldEqual, 0)
 				Convey("Unmapping the file should suceed", func() {
 					err = mapping.Unmap(EDF_UNMAP_SYNC)
 					So(err, ShouldEqual, nil)

@@ -50,11 +50,11 @@ func (e *EdfFile) getContiguousOffset(pagesRequested uint32) (uint32, error) {
 	for {
 		// Get the range for this block
 		r := e.GetPageRange(block, block)
-		if r.SegmentStart != r.SegmentEnd {
+		if r.Start.Segment != r.End.Segment {
 			return 0, fmt.Errorf("Contents block split across segments")
 		}
-		bytes := e.m[r.SegmentStart]
-		bytes = bytes[r.ByteStart : r.ByteEnd+1]
+		bytes := e.m[r.Start.Segment]
+		bytes = bytes[r.Start.Byte : r.End.Byte+1]
 		// Get the address of the next contents block
 		block = uint64FromBytes(bytes)
 		if block != 0 {
@@ -115,11 +115,11 @@ func (e *EdfFile) addNewContentsBlock() error {
 	for {
 		// Get the range for this block
 		r := e.GetPageRange(block, block)
-		if r.SegmentStart != r.SegmentEnd {
+		if r.Start.Segment != r.End.Segment {
 			return fmt.Errorf("Contents block split across segments")
 		}
-		bytes := e.m[r.SegmentStart]
-		bytes = bytes[r.ByteStart : r.ByteEnd+1]
+		bytes := e.m[r.Start.Segment]
+		bytes = bytes[r.Start.Byte : r.End.Byte+1]
 		// Get the address of the next contents block
 		block = uint64FromBytes(bytes)
 		if block == 0 {
@@ -141,11 +141,11 @@ func (e *EdfFile) addToTOC(c *ContentEntry, extend bool) error {
 	for {
 		// Get the range for this block
 		r := e.GetPageRange(block, block)
-		if r.SegmentStart != r.SegmentEnd {
+		if r.Start.Segment != r.End.Segment {
 			return fmt.Errorf("Contents block split across segments")
 		}
-		bytes := e.m[r.SegmentStart]
-		bytes = bytes[r.ByteStart:r.ByteEnd]
+		bytes := e.m[r.Start.Segment]
+		bytes = bytes[r.Start.Byte : r.End.Byte+1]
 		// Get the address of the next contents block
 		block = uint64FromBytes(bytes)
 		if block != 0 {
@@ -228,11 +228,11 @@ func (e *EdfFile) GetThreadBlocks(thread uint32) ([]EdfRange, error) {
 	for {
 		// Get the range for this block
 		r := e.GetPageRange(block, block)
-		if r.SegmentStart != r.SegmentEnd {
+		if r.Start.Segment != r.End.Segment {
 			return nil, fmt.Errorf("Contents block split across segments")
 		}
-		bytes := e.m[r.SegmentStart]
-		bytes = bytes[r.ByteStart : r.ByteEnd+1]
+		bytes := e.m[r.Start.Segment]
+		bytes = bytes[r.Start.Byte : r.End.Byte+1]
 		// Get the address of the next contents block
 		block = uint64FromBytes(bytes)
 		bytes = bytes[8:]

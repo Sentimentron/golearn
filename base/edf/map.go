@@ -16,14 +16,19 @@ type EdfFile struct {
 	pageSize    uint64
 }
 
+// EdfPosition represents a start and finish point
+// within the mapping
+type EdfPosition struct {
+	Segment uint64
+	Byte    uint64
+}
+
 // EdfRange represents a start and an end segment
 // mapped in an EdfFile and also the byte offsets
 // within that segment
 type EdfRange struct {
-	SegmentStart uint64
-	SegmentEnd   uint64
-	ByteStart    uint64
-	ByteEnd      uint64
+	Start EdfPosition
+	End   EdfPosition
 }
 
 // edfCallFree is a half-baked finalizer called on garbage
@@ -142,10 +147,10 @@ func EdfMap(f *os.File, mode int) (*EdfFile, error) {
 // two positions in the file
 func (e *EdfFile) Range(byteStart uint64, byteEnd uint64) EdfRange {
 	var ret EdfRange
-	ret.SegmentStart = byteStart / e.segmentSize
-	ret.SegmentEnd = byteEnd / e.segmentSize
-	ret.ByteStart = byteStart % e.segmentSize
-	ret.ByteEnd = byteEnd % e.segmentSize
+	ret.Start.Segment = byteStart / e.segmentSize
+	ret.End.Segment = byteEnd / e.segmentSize
+	ret.Start.Byte = byteStart % e.segmentSize
+	ret.End.Byte = byteEnd % e.segmentSize
 	return ret
 }
 
@@ -228,11 +233,11 @@ func (e *EdfFile) GetThreads() (map[uint32]string, error) {
 	for {
 		// Decode the block offset
 		r := e.GetPageRange(block, block)
-		if r.SegmentStart != r.SegmentEnd {
+		if r.Start.Segment != r.End.Segment {
 			return nil, fmt.Errorf("Thread range split across segments")
 		}
-		bytes := e.m[r.SegmentStart]
-		bytes = bytes[r.ByteStart : r.ByteEnd+1]
+		bytes := e.m[r.Start.Segment]
+		bytes = bytes[r.Start.Byte : r.End.Byte+1]
 		// The first 8 bytes say where to go next
 		block = uint64FromBytes(bytes)
 		bytes = bytes[8:]
@@ -324,4 +329,21 @@ func (e *EdfFile) Unmap(flags int) error {
 		}
 	}
 	return nil
+}
+
+// ResolveRange returns a slice of byte slices representing
+// the underlying memory referenced by EdfRange
+func (e *EdfFile) ResolveRange(r EdfRange) [][]byte {
+	ret := make([][]byte, r.End.Segment-r.Start.Segment+1)
+	segCounter := 0
+	for segment := r.Start.Segment; segment <= r.End.Segment; segment++ {
+		ret[segCounter] = e.m[segment]
+		if segment == r.Start.Segment {
+			ret[segCounter] = ret[segCounter][r.Start.Byte:]
+		}
+		if segment == r.End.Segment {
+			ret[segCounter] = ret[segCounter][:r.End.Byte+1]
+		}
+	}
+	return ret
 }
