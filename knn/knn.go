@@ -4,6 +4,7 @@
 package knn
 
 import (
+	"fmt"
 	base "github.com/sjwhitworth/golearn/base"
 	util "github.com/sjwhitworth/golearn/utilities"
 )
@@ -86,6 +87,7 @@ func (KNN *KNNClassifier) Predict(what *base.Instances) base.UpdatableDataGrid {
 		}
 
 		ret.AppendRow(map[base.Attribute][]byte{classAttr: classAttr.GetSysValFromString(maxClass)})
+		fmt.Println(predRow)
 		return true, nil
 	})
 
