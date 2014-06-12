@@ -3,9 +3,8 @@ package base
 import (
 	"bytes"
 	"encoding/binary"
-	"errors"
 	"fmt"
-	"github.com/gonum/matrix/mat64"
+	"github.com/sjwhitworth/golearn/base/edf"
 	"math/rand"
 )
 
@@ -13,7 +12,7 @@ import (
 // stored internally in mat.DenseMatrix as float64's.
 // See docs/instances.md for more information.
 type Instances struct {
-	storage    *mat64.Dense
+	storage    *edf.EdfFile
 	attributes []Attribute
 	attrLookup map[Attribute]int
 	Rows       int
@@ -104,7 +103,7 @@ func (inst *Instances) Sort(direction SortDirection, attributes []Attribute) err
 	for i := 0; i < inst.Rows; i++ {
 		byteBuf := make([]byte, 8*len(attrs))
 		for _, a := range attrs {
-			x := inst.storage.At(i, a)
+			x := inst.get(i, a)
 			binary.Write(buf, binary.LittleEndian, xorFloatOp(x))
 		}
 		buf.Read(byteBuf)
@@ -168,78 +167,20 @@ func (inst *Instances) Sort(direction SortDirection, attributes []Attribute) err
 // NewInstances returns a preallocated Instances structure
 // with some helful values pre-filled.
 func NewInstances(attrs []Attribute, rows int) *Instances {
-	rawStorage := make([]float64, rows*len(attrs))
-	return NewInstancesFromRaw(attrs, rows, rawStorage)
-}
-
-// CheckNewInstancesFromRaw checks whether a call to NewInstancesFromRaw
-// is likely to produce an error-free result.
-func CheckNewInstancesFromRaw(attrs []Attribute, rows int, data []float64) error {
-	size := rows * len(attrs)
-	if size < len(data) {
-		return errors.New("base: data length is larger than the rows * attribute space.")
-	} else if size > len(data) {
-		return errors.New("base: data is smaller than the rows * attribute space")
-	}
-	return nil
-}
-
-// NewInstancesFromRaw wraps a slice of float64 numbers in a
-// mat64.Dense structure, reshaping it with the given number of rows
-// and representing it with the given attrs (Attribute slice)
-//
-// IMPORTANT: if the |attrs| * |rows| value doesn't equal len(data)
-// then panic()s may occur. Use CheckNewInstancesFromRaw to confirm.
-func NewInstancesFromRaw(attrs []Attribute, rows int, data []float64) *Instances {
-	rawStorage := mat64.NewDense(rows, len(attrs), data)
-	return NewInstancesFromDense(attrs, rows, rawStorage)
-}
-
-// NewInstancesFromDense creates a set of Instances from a mat64.Dense
-// matrix
-func NewInstancesFromDense(attrs []Attribute, rows int, mat *mat64.Dense) *Instances {
+	// Create Attribute mapping
 	attrLookup := make(map[Attribute]int)
 	for i, a := range attrs {
 		attrLookup[a] = i
 	}
-	return &Instances{mat, attrs, attrLookup, rows, len(attrs), len(attrs) - 1, 0}
-}
 
-// InstancesTrainTestSplit takes a given Instances (src) and a train-test fraction
-// (prop) and returns an array of two new Instances, one containing approximately
-// that fraction and the other containing what's left.
-//
-// IMPORTANT: this function is only meaningful when prop is between 0.0 and 1.0.
-// Using any other values may result in odd behaviour.
-func InstancesTrainTestSplit(src *Instances, prop float64) (*Instances, *Instances) {
-	trainingRows := make([]int, 0)
-	testingRows := make([]int, 0)
-	numAttrs := len(src.attributes)
-	src.Shuffle()
-	for i := 0; i < src.Rows; i++ {
-		trainOrTest := rand.Intn(101)
-		if trainOrTest > int(100*prop) {
-			trainingRows = append(trainingRows, i)
-		} else {
-			testingRows = append(testingRows, i)
-		}
+	// Allocate storage
+	storage, err := edf.EdfAnonMap()
+	if err != nil {
+		panic(err)
 	}
 
-	rawTrainMatrix := mat64.NewDense(len(trainingRows), numAttrs, make([]float64, len(trainingRows)*numAttrs))
-	rawTestMatrix := mat64.NewDense(len(testingRows), numAttrs, make([]float64, len(testingRows)*numAttrs))
-
-	for i, row := range trainingRows {
-		rowDat := src.storage.RowView(row)
-		rawTrainMatrix.SetRow(i, rowDat)
-	}
-	for i, row := range testingRows {
-		rowDat := src.storage.RowView(row)
-		rawTestMatrix.SetRow(i, rowDat)
-	}
-
-	trainingRet := NewInstancesFromDense(src.attributes, len(trainingRows), rawTrainMatrix)
-	testRet := NewInstancesFromDense(src.attributes, len(testingRows), rawTestMatrix)
-	return trainingRet, testRet
+	// Create the return structure
+	return &Instances{storage, attrs, attrLookup, rows, len(attrs), len(attrs) - 1, 0}
 }
 
 // GetAttrIndex returns the index of the first matching Attribute
@@ -382,7 +323,28 @@ func (inst *Instances) AppendRowExplicit(row map[Attribute][]byte) error {
 	}
 	// Double check that we've got enough space allocated
 	if inst.Rows <= inst.rowCount {
-		return fmt.Errorf("No space available")
+		// Allocate more space
+		// Determine the length of each row (easy as we're still fixed
+		// on 8-byte lengths)
+		rowLength := 8 * len(inst.attributes)
+		// Then need to allocate the correct number of pages to minimize
+		// wastage
+		wastage := rowLength % pageSize
+		for n := 1; n < 4096; ((n%pageSize)*wastage)%pageSize == 0 {
+			// Computing the optimum size
+		}
+		r, err := edf.AllocPages(n, 2) // Allocate to the FIXED thread
+		if err != nil {
+			return fmt.Errorf("No space available or (%s)", err)
+		}
+		// Get the total size of the allocation
+		size := r.Size()
+		// Compute the number of additional rows
+		additionalRows := size / rowLength
+		// Add that to the rows available
+		inst.rowCount += additionalRows
+		// Cache the EdfRange for future usage
+		inst.storageRanges = append(inst.storageRanges, r)
 	}
 	// Convert attributes into offsets
 	positionMap := make(map[int][]byte)
