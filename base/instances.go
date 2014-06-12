@@ -15,6 +15,7 @@ import (
 type Instances struct {
 	storage    *mat64.Dense
 	attributes []Attribute
+	attrLookup map[Attribute]int
 	Rows       int
 	Cols       int
 	ClassIndex int
@@ -193,7 +194,11 @@ func NewInstancesFromRaw(attrs []Attribute, rows int, data []float64) *Instances
 // NewInstancesFromDense creates a set of Instances from a mat64.Dense
 // matrix
 func NewInstancesFromDense(attrs []Attribute, rows int, mat *mat64.Dense) *Instances {
-	return &Instances{mat, attrs, rows, len(attrs), len(attrs) - 1, 0}
+	attrLookup := make(map[Attribute]int)
+	for i, a := range attrs {
+		attrLookup[a] = i
+	}
+	return &Instances{mat, attrs, attrLookup, rows, len(attrs), len(attrs) - 1, 0}
 }
 
 // InstancesTrainTestSplit takes a given Instances (src) and a train-test fraction
@@ -327,6 +332,7 @@ func (inst *Instances) AddAttribute(a Attribute) error {
 		return fmt.Errorf("Can't resize online")
 	}
 	inst.attributes = append(inst.attributes, a)
+	inst.attrLookup[a] = len(inst.attributes) - 1
 	return nil
 }
 
@@ -368,20 +374,14 @@ func (inst *Instances) AppendRow(row map[Attribute][]byte) error {
 	// Convert attributes into offsets
 	positionMap := make(map[int][]byte)
 	for a := range row {
-		matched := -1
-		for i := range inst.attributes {
-			if inst.attributes[i].Equals(a) {
-				matched = i
-				break
-			}
-		}
-		if matched == -1 {
+		pos, ok := inst.attrLookup[a]
+		if !ok {
 			return fmt.Errorf("Couldn't resolve attribute %s", a)
 		}
 		if len(row[a]) != 8 {
 			return fmt.Errorf("Variable width types aren't supported")
 		}
-		positionMap[matched] = row[a]
+		positionMap[pos] = row[a]
 	}
 	// Convert bytes into values, store in matrix
 	for col := range positionMap {
