@@ -39,7 +39,7 @@ func TestCategoricalAttributeVal(t *testing.T) {
 		x := "hello world 1!"
 		Convey("When the string gets converted", func() {
 			packed := attr.GetSysValFromString(x)
-			So(packed[7], ShouldEqual, 0x1)
+			So(packed[0], ShouldEqual, 0x1)
 			Convey("And then unconverted", func() {
 				unpacked := attr.GetStringFromSysVal(packed)
 				Convey("The unpacked version should be the same", func() {
