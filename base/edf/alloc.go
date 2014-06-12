@@ -25,11 +25,14 @@ func (e *EdfFile) extend(additionalPages uint32) error {
 }
 
 func (e *EdfFile) getFreeMapSize() uint64 {
-	fileInfo, err := e.f.Stat()
-	if err != nil {
-		panic(err)
+	if e.f != nil {
+		fileInfo, err := e.f.Stat()
+		if err != nil {
+			panic(err)
+		}
+		return uint64(fileInfo.Size()) / e.pageSize
 	}
-	return uint64(fileInfo.Size()) / e.pageSize
+	return uint64(EDF_SIZE) / e.pageSize
 }
 
 // FixedAlloc allocates a |bytesRequested| chunk of pages

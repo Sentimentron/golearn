@@ -6,16 +6,31 @@ import (
 	"unsafe"
 )
 
+func PackU64ToBytesInline(val uint64, ret []byte) {
+	ret[7] = byte(val & (0xff << 56) >> 56)
+	ret[6] = byte(val & (0xff << 48) >> 48)
+	ret[5] = byte(val & (0xff << 40) >> 40)
+	ret[4] = byte(val & (0xff << 32) >> 32)
+	ret[3] = byte(val & (0xff << 24) >> 24)
+	ret[2] = byte(val & (0xff << 16) >> 16)
+	ret[1] = byte(val & (0xff << 8) >> 8)
+	ret[0] = byte(val & (0xff << 0) >> 0)
+}
+
+func PackFloatToBytesInline(val float64, ret []byte) {
+	PackU64ToBytesInline(math.Float64bits(val), ret)
+}
+
 func PackU64ToBytes(val uint64) []byte {
 	ret := make([]byte, 8)
-	ret[7] = byte(val & (0xFF << 56) >> 56)
-	ret[6] = byte(val & (0xFF << 48) >> 48)
-	ret[5] = byte(val & (0xFF << 40) >> 40)
-	ret[4] = byte(val & (0xFF << 32) >> 32)
-	ret[3] = byte(val & (0xFF << 24) >> 24)
-	ret[2] = byte(val & (0xFF << 16) >> 16)
-	ret[1] = byte(val & (0xFF << 8) >> 8)
-	ret[0] = byte(val & (0xFF << 0) >> 0)
+	ret[7] = byte(val & (0xff << 56) >> 56)
+	ret[6] = byte(val & (0xff << 48) >> 48)
+	ret[5] = byte(val & (0xff << 40) >> 40)
+	ret[4] = byte(val & (0xff << 32) >> 32)
+	ret[3] = byte(val & (0xff << 24) >> 24)
+	ret[2] = byte(val & (0xff << 16) >> 16)
+	ret[1] = byte(val & (0xff << 8) >> 8)
+	ret[0] = byte(val & (0xff << 0) >> 0)
 	return ret
 }
 

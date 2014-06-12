@@ -19,6 +19,17 @@ type Instances struct {
 	Cols       int
 	ClassIndex int
 	rowCount   int
+	// How many rows do we allocate in one go?
+	fixedAllocationSize      uint32
+	fixedAllocationRowAmount uint32
+	// Which row corresponds to which EdfRange?
+	byteLevelMapping []edf.EdfRange
+	// Where should we insert new entries?
+	lastAllocation *edf.EdfRange
+	// When was the last time we allocated?
+	lastAllocatedAt int
+	// How many rows in total do we have space for
+	rowsAllocated int
 }
 
 func xorFloatOp(item float64) float64 {
@@ -167,20 +178,69 @@ func (inst *Instances) Sort(direction SortDirection, attributes []Attribute) err
 // NewInstances returns a preallocated Instances structure
 // with some helful values pre-filled.
 func NewInstances(attrs []Attribute, rows int) *Instances {
+
+	ret := new(Instances)
+
+	ret.Rows = rows
+	ret.Cols = len(attrs)
+	ret.ClassIndex = len(attrs) - 1
+	ret.rowCount = 0
+
 	// Create Attribute mapping
 	attrLookup := make(map[Attribute]int)
 	for i, a := range attrs {
 		attrLookup[a] = i
 	}
 
+	ret.attributes = attrs
+	ret.attrLookup = attrLookup
+
 	// Allocate storage
 	storage, err := edf.EdfAnonMap()
 	if err != nil {
 		panic(err)
 	}
+	ret.storage = storage
 
-	// Create the return structure
-	return &Instances{storage, attrs, attrLookup, rows, len(attrs), len(attrs) - 1, 0}
+	// Find out the optimal allocation size
+	// Determine the length of each row (easy as we're still fixed
+	// on 8-byte lengths)
+	pageSize := uint32(storage.GetPageSize())
+	rowLength := uint32(ret.computeRowStorageRequirements())
+	// Then need to allocate the correct number of pages to minimize
+	// wastage
+	wastage := rowLength % pageSize
+	for n := uint32(1); n < 4096 && ((n%pageSize)*wastage)%pageSize != 0; n++ {
+		// Computing the optimum size
+		ret.fixedAllocationSize = n
+		ret.fixedAllocationRowAmount = (n * pageSize) / rowLength
+	}
+	ret.byteLevelMapping = make([]edf.EdfRange, 0)
+	return ret
+}
+
+func (inst *Instances) computeRowStorageRequirements() int {
+	return 8 * len(inst.attributes)
+}
+
+func (inst *Instances) extendAllocation() error {
+	// Allocate more space
+	r, err := inst.storage.AllocPages(inst.fixedAllocationSize, 2) // Allocate to the FIXED thread
+	if err != nil {
+		return fmt.Errorf("No space available or (%s)", err)
+	}
+	// Get the total size of the allocation
+	size := r.Size()
+	// Compute the number of additional rows
+	rowLength := inst.computeRowStorageRequirements()
+	additionalRows := int(size) / rowLength
+	// Cache the EdfRange for future reference
+	inst.byteLevelMapping = append(inst.byteLevelMapping, r)
+	inst.lastAllocatedAt = inst.rowCount
+	// Add that to the rows available
+	inst.lastAllocation = &r
+	inst.rowsAllocated += additionalRows
+	return nil
 }
 
 // GetAttrIndex returns the index of the first matching Attribute
@@ -314,57 +374,18 @@ func (inst *Instances) RemoveAttribute(a Attribute) error {
 // if a) the number of rows exceeds the space allocated
 // b) if the row map contains values with more than 8 bytes
 // c) if the row map contains unrecognised Attributes
+// TODO: Update positionMap generation
 func (inst *Instances) AppendRowExplicit(row map[Attribute][]byte) error {
-	// If we haven't allocated yet...
-	if inst.storage == nil {
-		// Allocate new storage
-		tmp := make([]float64, inst.Rows*len(inst.attributes))
-		inst.storage = mat64.NewDense(inst.Rows, len(inst.attributes), tmp)
-	}
-	// Double check that we've got enough space allocated
-	if inst.Rows <= inst.rowCount {
-		// Allocate more space
-		// Determine the length of each row (easy as we're still fixed
-		// on 8-byte lengths)
-		rowLength := 8 * len(inst.attributes)
-		// Then need to allocate the correct number of pages to minimize
-		// wastage
-		wastage := rowLength % pageSize
-		for n := 1; n < 4096; ((n%pageSize)*wastage)%pageSize == 0 {
-			// Computing the optimum size
-		}
-		r, err := edf.AllocPages(n, 2) // Allocate to the FIXED thread
-		if err != nil {
-			return fmt.Errorf("No space available or (%s)", err)
-		}
-		// Get the total size of the allocation
-		size := r.Size()
-		// Compute the number of additional rows
-		additionalRows := size / rowLength
-		// Add that to the rows available
-		inst.rowCount += additionalRows
-		// Cache the EdfRange for future usage
-		inst.storageRanges = append(inst.storageRanges, r)
-	}
 	// Convert attributes into offsets
-	positionMap := make(map[int][]byte)
+	positionMap := make([][]byte, len(row))
 	for a := range row {
 		pos, ok := inst.attrLookup[a]
 		if !ok {
 			return fmt.Errorf("Couldn't resolve attribute %s", a)
 		}
-		if len(row[a]) != 8 {
-			return fmt.Errorf("Variable width types aren't supported")
-		}
 		positionMap[pos] = row[a]
 	}
-	// Convert bytes into values, store in matrix
-	for col := range positionMap {
-		valf := UnpackBytesToFloat(positionMap[col])
-		inst.set(inst.rowCount, col, valf)
-	}
-	inst.rowCount++
-	return nil
+	return inst.AppendRow(positionMap)
 }
 
 // AppendRow adds the given row map to this set of Instances.
@@ -374,16 +395,14 @@ func (inst *Instances) AppendRowExplicit(row map[Attribute][]byte) error {
 // b) if the row map contains values with more than 8 bytes
 // c) if the row map contains unrecognised Attributes
 func (inst *Instances) AppendRow(row [][]byte) error {
-	// If we haven't allocated yet...
-	if inst.storage == nil {
-		// Allocate new storage
-		tmp := make([]float64, inst.Rows*len(inst.attributes))
-		inst.storage = mat64.NewDense(inst.Rows, len(inst.attributes), tmp)
-	}
 	// Double check that we've got enough space allocated
-	if inst.Rows <= inst.rowCount {
-		return fmt.Errorf("No space available")
+	if inst.rowsAllocated <= inst.rowCount {
+		err := inst.extendAllocation()
+		if err != nil {
+			return fmt.Errorf("Row allocation failure: %s", err)
+		}
 	}
+	//
 	// Convert bytes into values, store in matrix
 	for col := range row {
 		valf := UnpackBytesToFloat(row[col])
@@ -464,13 +483,31 @@ func (inst *Instances) GetClassDistributionAfterSplit(at Attribute) map[string]m
 // get returns the system representation (float64) of the value
 // stored at the given row and col coordinate.
 func (inst *Instances) get(row int, col int) float64 {
-	return inst.storage.At(row, col)
+	// Translate the row into an allocation
+	rowAlloc := row / int(inst.fixedAllocationRowAmount)
+	rowOffset := row % int(inst.fixedAllocationRowAmount)
+	rowLength := 8 * len(inst.attributes)
+	// Translate the column into a position
+	col *= 8
+	// Get the byte offsets
+	rawData := inst.storage.ResolveRange(inst.byteLevelMapping[rowAlloc])
+
+	return UnpackBytesToFloat(rawData[0][rowOffset*rowLength+col:])
 }
 
 // set sets the system representation (float64) to val at the
 // given row and column coordinate.
 func (inst *Instances) set(row int, col int, val float64) {
-	inst.storage.Set(row, col, val)
+	// Translate the row into an allocation
+	rowAlloc := row / int(inst.fixedAllocationRowAmount)
+	rowOffset := row % int(inst.fixedAllocationRowAmount)
+	rowLength := 8 * len(inst.attributes)
+	// Translate the column into a position
+	col *= 8
+	// Get the byte offsets
+	//	fmt.Printf("%d %d %d\n", row, int(inst.fixedAllocationRowAmount), rowAlloc)
+	rawData := inst.storage.ResolveRange(inst.byteLevelMapping[rowAlloc])
+	PackFloatToBytesInline(val, rawData[0][rowOffset*rowLength+col:])
 }
 
 //
@@ -483,7 +520,7 @@ func (inst *Instances) RowStr(row int) string {
 	// Prints a given row
 	var buffer bytes.Buffer
 	for j := 0; j < inst.Cols; j++ {
-		val := inst.storage.At(row, j)
+		val := inst.get(row, j)
 		convVal := PackFloatToBytes(val)
 		a := inst.attributes[j]
 		postfix := " "
@@ -523,7 +560,7 @@ func (inst *Instances) String() string {
 	for i := 0; i < maxRows; i++ {
 		buffer.WriteString("\t")
 		for j := 0; j < inst.Cols; j++ {
-			val := inst.storage.At(i, j)
+			val := inst.get(i, j)
 			convVal := PackFloatToBytes(val)
 			a := inst.attributes[j]
 			buffer.WriteString(fmt.Sprintf("%s ", a.GetStringFromSysVal(convVal)))
@@ -599,12 +636,27 @@ func (inst *Instances) Equals(otherGrid DataGrid) bool {
 }
 
 func (inst *Instances) swapRows(r1 int, r2 int) {
-	row1buf := make([]float64, inst.Cols)
-	row2buf := make([]float64, inst.Cols)
-	row1 := inst.storage.RowView(r1)
-	row2 := inst.storage.RowView(r2)
-	copy(row1buf, row1)
-	copy(row2buf, row2)
-	inst.storage.SetRow(r1, row2buf)
-	inst.storage.SetRow(r2, row1buf)
+
+	rowLength := 8 * len(inst.attributes)
+
+	// Translate r1 into an allocation
+	rowAlloc := r1 / int(inst.fixedAllocationRowAmount)
+	rowOffset := r1 % int(inst.fixedAllocationRowAmount)
+	// Get the byte offsets for r1
+	r1Data := inst.storage.ResolveRange(inst.byteLevelMapping[rowAlloc])
+	r1Slice := r1Data[0][rowOffset*rowLength : (rowOffset+1)*rowLength]
+
+	// Translate r2 into an allocation
+	rowAlloc = r2 / int(inst.fixedAllocationRowAmount)
+	rowOffset = r2 % int(inst.fixedAllocationRowAmount)
+	// Get the byte offsets for r2
+	r2Data := inst.storage.ResolveRange(inst.byteLevelMapping[rowAlloc])
+	r2Slice := r2Data[0][rowOffset*rowLength : (rowOffset+1)*rowLength]
+
+	// Create a temporary buffer for copying
+	buf := make([]byte, rowLength)
+
+	copy(buf, r2Slice)
+	copy(r2Slice, r1Slice)
+	copy(r1Slice, buf)
 }

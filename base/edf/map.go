@@ -16,6 +16,11 @@ type EdfFile struct {
 	pageSize    uint64
 }
 
+// GetPageSize returns the pageSize of an EdfFile
+func (e *EdfFile) GetPageSize() uint64 {
+	return e.pageSize
+}
+
 // EdfPosition represents a start and finish point
 // within the mapping
 type EdfPosition struct {
@@ -27,8 +32,16 @@ type EdfPosition struct {
 // mapped in an EdfFile and also the byte offsets
 // within that segment
 type EdfRange struct {
-	Start EdfPosition
-	End   EdfPosition
+	Start       EdfPosition
+	End         EdfPosition
+	segmentSize uint64
+}
+
+// Size returns the size (in bytes) of a given EdfRange
+func (r *EdfRange) Size() uint64 {
+	ret := uint64(r.End.Segment-r.Start.Segment) * r.segmentSize
+	ret += uint64(r.End.Byte - r.Start.Byte)
+	return ret
 }
 
 // edfCallFree is a half-baked finalizer called on garbage
@@ -151,6 +164,7 @@ func (e *EdfFile) Range(byteStart uint64, byteEnd uint64) EdfRange {
 	ret.End.Segment = byteEnd / e.segmentSize
 	ret.Start.Byte = byteStart % e.segmentSize
 	ret.End.Byte = byteEnd % e.segmentSize
+	ret.segmentSize = e.segmentSize
 	return ret
 }
 
