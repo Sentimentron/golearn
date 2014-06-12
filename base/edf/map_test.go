@@ -4,8 +4,75 @@ import (
 	. "github.com/smartystreets/goconvey/convey"
 	"io/ioutil"
 	"os"
+	"os/signal"
+	"runtime"
+	"syscall"
 	"testing"
+	"time"
 )
+
+var (
+	SegFault os.Signal = syscall.SIGSEGV
+)
+
+func TestCleanup(t *testing.T) {
+	var ref []byte
+	Convey("The mapping should be unlinked after garbage collection", t, func() {
+		Convey("Anonymous mapping should suceed", func() {
+			mapping, err := EdfAnonMap()
+			So(err, ShouldEqual, nil)
+			ref = mapping.m[0]
+		})
+		// Now letting the mapping fall out of scope
+		// Forcing garbage collection twice
+		runtime.GC()
+		runtime.GC()
+		Convey("Access the anonymous mapping should panic", func() {
+			So(func() {
+				ref[0] = 'H'
+				ref[100] = 'E'
+				ref[200] = 'L'
+				ref[300] = 'L'
+				ref[400] = 'O'
+				ref[500] = 'W'
+				ref[1000] = 'O'
+				ref[2000] = 'R'
+				ref[3000] = 'L'
+				ref[4000] = 'D'
+			}, ShouldPanic)
+		})
+	})
+	Convey("Access to the mapping should fail after unmapping", t, func() {
+		Convey("Anonymous mapping should suceed", func() {
+			mapping, err := EdfAnonMap()
+			So(err, ShouldEqual, nil)
+			Convey("Unmap should succeed", func() {
+				err := mapping.Unmap(EDF_UNMAP_NOSYNC)
+				So(err, ShouldEqual, nil)
+				Convey("Subsequent access should fail", func() {
+					// Start swallowing segfaults
+					c := make(chan os.Signal, 1)
+					signal.Notify(c)
+					faulted := false
+					defer signal.Stop(c)
+
+					mapping.m[0][500] = 2
+					select {
+					case s := <-c:
+						if s == SegFault {
+							faulted = true
+						}
+
+					case <-time.After(1 * time.Second):
+						faulted = false
+					}
+
+					So(faulted, ShouldEqual, true)
+				})
+			})
+		})
+	})
+}
 
 func TestAnonMap(t *testing.T) {
 	Convey("Anonymous mapping should suceed", t, func() {

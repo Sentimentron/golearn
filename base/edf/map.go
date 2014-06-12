@@ -4,6 +4,7 @@ import (
 	"fmt"
 	mmap "github.com/riobard/go-mmap"
 	"os"
+	"runtime"
 )
 
 // EdfFile represents a mapped file on disk or
@@ -25,10 +26,20 @@ type EdfRange struct {
 	ByteEnd      uint64
 }
 
+// edfCallFree is a half-baked finalizer called on garbage
+// collection to ensure that the mapping gets freed
+func edfCallFree(e *EdfFile) {
+	fmt.Println("WARNING: Call Unmap() instead of allowing garbage collection")
+	e.Unmap(EDF_UNMAP_NOSYNC)
+}
+
+// EdfAnonMap maps the EdfFile structure into RAM
+// IMPORTANT: everything's lost if unmapped
 func EdfAnonMap() (*EdfFile, error) {
 
-	var ret EdfFile
 	var err error
+
+	ret := new(EdfFile)
 
 	// Figure out the flags
 	protFlags := mmap.PROT_READ | mmap.PROT_WRITE
@@ -54,7 +65,11 @@ func EdfAnonMap() (*EdfFile, error) {
 	// Generate the header
 	ret.createHeader()
 	err = ret.writeInitialData()
-	return &ret, err
+
+	// Make sure this gets unmapped on garbage collection
+	runtime.SetFinalizer(ret, edfCallFree)
+
+	return ret, err
 }
 
 // EdfMap takes an os.File and returns an EdfMappedFile
@@ -70,10 +85,10 @@ func EdfAnonMap() (*EdfFile, error) {
 // correct size without remapping. On 32-bit systems, this
 // is set to 2GiB.
 func EdfMap(f *os.File, mode int) (*EdfFile, error) {
-	var ret EdfFile
 	var err error
 
 	// Set up various things
+	ret := new(EdfFile)
 	ret.f = f
 	ret.m = make([]mmap.Mmap, 0)
 
@@ -116,7 +131,10 @@ func EdfMap(f *os.File, mode int) (*EdfFile, error) {
 		err = fmt.Errorf("Unrecognised flags")
 	}
 
-	return &ret, err
+	// Make sure this gets unmapped on garbage collection
+	runtime.SetFinalizer(ret, edfCallFree)
+
+	return ret, err
 
 }
 
