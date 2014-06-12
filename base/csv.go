@@ -146,7 +146,7 @@ func ParseCSVToInstances(filepath string, hasHeaders bool) (instances *Instances
 
 	// Get Attribute structure
 	attrStructure := instances.GetAttrs()
-	rowStructure := make(map[Attribute][]byte, len(attrStructure))
+	rowStructure := make([][]byte, len(attrStructure))
 	rowCounter := 0
 	for {
 		record, err := reader.Read()
@@ -162,7 +162,7 @@ func ParseCSVToInstances(filepath string, hasHeaders bool) (instances *Instances
 			}
 		}
 		for i := range attrStructure {
-			rowStructure[attrStructure[i]] = attrStructure[i].GetSysValFromString(record[i])
+			rowStructure[i] = attrStructure[i].GetSysValFromString(record[i])
 		}
 		instances.AppendRow(rowStructure)
 		rowCounter++

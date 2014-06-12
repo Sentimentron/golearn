@@ -4,6 +4,7 @@
 package knn
 
 import (
+	"fmt"
 	base "github.com/sjwhitworth/golearn/base"
 	util "github.com/sjwhitworth/golearn/utilities"
 )
@@ -55,10 +56,10 @@ func (KNN *KNNClassifier) Predict(what *base.Instances) base.UpdatableDataGrid {
 	// Map over the rows
 
 	rownumbers := make(map[int]float64)
-	what.MapOverRows(normalAttrs, func(pred map[base.Attribute][]byte, predRow int) (bool, error) {
+	what.MapOverRows(normalAttrs, func(pred [][]byte, predRow int) (bool, error) {
 		maxmap := make(map[string]int)
 		// For each item in training...
-		KNN.TrainingData.MapOverRows(normalAttrs, func(train map[base.Attribute][]byte, trainRow int) (bool, error) {
+		KNN.TrainingData.MapOverRows(normalAttrs, func(train [][]byte, trainRow int) (bool, error) {
 			distance := 0.0
 			for a := range train {
 				thisVal := base.UnpackBytesToFloat(train[a])
@@ -85,7 +86,11 @@ func (KNN *KNNClassifier) Predict(what *base.Instances) base.UpdatableDataGrid {
 			}
 		}
 
-		ret.AppendRow(map[base.Attribute][]byte{classAttr: classAttr.GetSysValFromString(maxClass)})
+		ret.AppendRowExplicit(map[base.Attribute][]byte{classAttr: classAttr.GetSysValFromString(maxClass)})
+		fmt.Println(predRow)
+		if predRow >= 20 {
+			return false, nil
+		}
 		return true, nil
 	})
 

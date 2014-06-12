@@ -74,6 +74,10 @@ func (inst *Instances) GetAttrs() map[int]Attribute {
 	return ret
 }
 
+func (inst *Instances) GetAttr(i int) Attribute {
+	return inst.attributes[i]
+}
+
 // GetClassAttrs returns the set of Attributes that are currently
 // designated as class variables
 func (inst *Instances) GetClassAttrs() map[int]Attribute {
@@ -301,10 +305,11 @@ func (inst *Instances) DecomposeOnAttributeValues(at Attribute) map[string]Updat
 	}
 
 	// Range over and filter the attributes, add to appropriate row
-	inst.MapOverRows(inst.GetAttrs(), func(row map[Attribute][]byte, i int) (bool, error) {
+	inst.MapOverRowsExplicit(inst.GetAttrs(), func(row map[Attribute][]byte, i int) (bool, error) {
+
 		attrVal := at.GetStringFromSysVal(row[at])
 		delete(row, at)
-		err := ret[attrVal].AppendRow(row)
+		err := ret[attrVal].AppendRowExplicit(row)
 		if err != nil {
 			panic(err)
 		}
@@ -314,12 +319,20 @@ func (inst *Instances) DecomposeOnAttributeValues(at Attribute) map[string]Updat
 	return ret
 }
 
-// GetRow returns a map containing the values of the selected Attributes
+// GetRowExplicit returns a map containing the values of the selected Attributes
 // at a particular row.
-func (inst *Instances) GetRow(attrs map[int]Attribute, row int) map[Attribute][]byte {
+func (inst *Instances) GetRowExplicit(attrs map[int]Attribute, row int) map[Attribute][]byte {
 	ret := make(map[Attribute][]byte)
 	for a := range attrs {
 		ret[attrs[a]] = PackFloatToBytes(inst.get(row, a))
+	}
+	return ret
+}
+
+func (inst *Instances) GetRow(attrs map[int]Attribute, row int) [][]byte {
+	ret := make([][]byte, 0)
+	for a := range attrs {
+		ret = append(ret, PackFloatToBytes(inst.get(row, a)))
 	}
 	return ret
 }
@@ -354,13 +367,13 @@ func (inst *Instances) RemoveAttribute(a Attribute) error {
 	return nil
 }
 
-// AppendRow adds the given row map to this set of Instances.
+// AppendRowExplicit adds the given row map to this set of Instances.
 // Allocates the required storage if unallocated.
 // IMPORTANT: will return an error code (and won't add the row)
 // if a) the number of rows exceeds the space allocated
 // b) if the row map contains values with more than 8 bytes
 // c) if the row map contains unrecognised Attributes
-func (inst *Instances) AppendRow(row map[Attribute][]byte) error {
+func (inst *Instances) AppendRowExplicit(row map[Attribute][]byte) error {
 	// If we haven't allocated yet...
 	if inst.storage == nil {
 		// Allocate new storage
@@ -392,10 +405,50 @@ func (inst *Instances) AppendRow(row map[Attribute][]byte) error {
 	return nil
 }
 
-// MapOverRows passes each row map into a function used for training
+// AppendRow adds the given row map to this set of Instances.
+// Allocates the required storage if unallocated.
+// IMPORTANT: will return an error code (and won't add the row)
+// if a) the number of rows exceeds the space allocated
+// b) if the row map contains values with more than 8 bytes
+// c) if the row map contains unrecognised Attributes
+func (inst *Instances) AppendRow(row [][]byte) error {
+	// If we haven't allocated yet...
+	if inst.storage == nil {
+		// Allocate new storage
+		tmp := make([]float64, inst.Rows*len(inst.attributes))
+		inst.storage = mat64.NewDense(inst.Rows, len(inst.attributes), tmp)
+	}
+	// Double check that we've got enough space allocated
+	if inst.Rows <= inst.rowCount {
+		return fmt.Errorf("No space available")
+	}
+	// Convert bytes into values, store in matrix
+	for col := range row {
+		valf := UnpackBytesToFloat(row[col])
+		inst.set(inst.rowCount, col, valf)
+	}
+	inst.rowCount++
+	return nil
+}
+
+// MapOverRowsExplicit passes each row map into a function used for training
 // Within the closure, return `false, nil` to indicate the end of
 // processing, or return `_, error` to indicate a problem.
-func (inst *Instances) MapOverRows(attrs map[int]Attribute, mapFunc func(map[Attribute][]byte, int) (bool, error)) error {
+func (inst *Instances) MapOverRowsExplicit(attrs map[int]Attribute, mapFunc func(map[Attribute][]byte, int) (bool, error)) error {
+	for i := 0; i < inst.Rows; i++ {
+		row := inst.GetRowExplicit(attrs, i)
+		ok, err := mapFunc(row, i)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			break
+		}
+	}
+	return nil
+}
+
+func (inst *Instances) MapOverRows(attrs map[int]Attribute, mapFunc func([][]byte, int) (bool, error)) error {
 	for i := 0; i < inst.Rows; i++ {
 		row := inst.GetRow(attrs, i)
 		ok, err := mapFunc(row, i)

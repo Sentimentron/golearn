@@ -63,7 +63,7 @@ func GetClass(from FixedDataGrid, row int) (string, error) {
 		classAttr = classAttrs[i]
 	}
 
-	rowVals := from.GetRow(classAttrs, row)
+	rowVals := from.GetRowExplicit(classAttrs, row)
 
 	return classAttr.GetStringFromSysVal(rowVals[classAttr]), nil
 

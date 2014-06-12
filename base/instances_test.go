@@ -17,7 +17,7 @@ func TestInstancesAppendRowMinimal(t *testing.T) {
 			packed := attr.GetSysValFromString(x)
 			rowMap := make(map[Attribute][]byte)
 			rowMap[attr] = packed
-			err := inst.AppendRow(rowMap)
+			err := inst.AppendRowExplicit(rowMap)
 			Convey("That shouldn't have an error", func() {
 				So(err, ShouldEqual, nil)
 			})

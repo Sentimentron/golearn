@@ -12,7 +12,10 @@ const (
 
 type DataGrid interface {
 	// Pass all rows into a training closure
-	MapOverRows(map[int]Attribute, func(map[Attribute][]byte, int) (bool, error)) error
+	MapOverRowsExplicit(map[int]Attribute, func(map[Attribute][]byte, int) (bool, error)) error
+	MapOverRows(map[int]Attribute, func([][]byte, int) (bool, error)) error
+	// Returns a single Attribute with a given index
+	GetAttr(int) Attribute
 	// Returns a int->Attribute map. Shouldn't be incompatibly changed.
 	GetAttrs() map[int]Attribute
 	// Returns a int->Attribute map containing classes
@@ -41,7 +44,9 @@ type FixedDataGrid interface {
 	// RowStr returns the string representation of a given row
 	RowStr(int) string
 	// GetRow returns the GetRows() response at a given row
-	GetRow(map[int]Attribute, int) map[Attribute][]byte
+	GetRow(map[int]Attribute, int) [][]byte
+	// GetRowExplicit
+	GetRowExplicit(map[int]Attribute, int) map[Attribute][]byte
 	// Shuffle randomizes the row order
 	Shuffle() FixedDataGrid
 	// Size returns two uint64s, column count and then row
@@ -51,7 +56,9 @@ type FixedDataGrid interface {
 type UpdatableDataGrid interface {
 	FixedDataGrid
 	// AppendRow inserts a new row
-	AppendRow(map[Attribute][]byte) error
+	AppendRow([][]byte) error
+	// AppendRowExplicit inserts a new row
+	AppendRowExplicit(map[Attribute][]byte) error
 	// Add a new attribute
 	AddAttribute(Attribute) error
 	// Delete an attribute
