@@ -25,6 +25,38 @@ type EdfRange struct {
 	ByteEnd      uint64
 }
 
+func EdfAnonMap() (*EdfFile, error) {
+
+	var ret EdfFile
+	var err error
+
+	// Figure out the flags
+	protFlags := mmap.PROT_READ | mmap.PROT_WRITE
+	mapFlags := mmap.MAP_FILE | mmap.MAP_SHARED
+	// Create mapping references
+	ret.m = make([]mmap.Mmap, 0)
+	// Get the page size
+	pageSize := int64(os.Getpagesize())
+	// Segment size is the size of each mapped region
+	ret.pageSize = uint64(pageSize)
+	ret.segmentSize = uint64(EDF_LENGTH) * uint64(os.Getpagesize())
+
+	// Map the memory
+	for i := int64(0); i < EDF_SIZE; i += int64(EDF_LENGTH) * pageSize {
+		thisMapping, err := mmap.AnonMap(int(ret.segmentSize), protFlags, mapFlags)
+		if err != nil {
+			// TODO: cleanup
+			return nil, err
+		}
+		ret.m = append(ret.m, thisMapping)
+	}
+
+	// Generate the header
+	ret.createHeader()
+	err = ret.writeInitialData()
+	return &ret, err
+}
+
 // EdfMap takes an os.File and returns an EdfMappedFile
 // structure, which represents the mmap'd underlying file
 //
@@ -51,7 +83,6 @@ func EdfMap(f *os.File, mode int) (*EdfFile, error) {
 		protFlags |= mmap.PROT_WRITE
 	}
 	mapFlags := mmap.MAP_FILE | mmap.MAP_SHARED
-
 	// Get the page size
 	pageSize := int64(os.Getpagesize())
 	// Segment size is the size of each mapped region
@@ -86,6 +117,7 @@ func EdfMap(f *os.File, mode int) (*EdfFile, error) {
 	}
 
 	return &ret, err
+
 }
 
 // GetRange returns the segment offset and range of

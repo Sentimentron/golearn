@@ -7,6 +7,34 @@ import (
 	"testing"
 )
 
+func TestAnonMap(t *testing.T) {
+	Convey("Anonymous mapping should suceed", t, func() {
+		mapping, err := EdfAnonMap()
+		So(err, ShouldEqual, nil)
+		bytes := mapping.m[0]
+		// Read the magic bytes
+		magic := bytes[0:4]
+		Convey("Magic bytes should be correct", func() {
+			So(magic[0], ShouldEqual, byte('G'))
+			So(magic[1], ShouldEqual, byte('O'))
+			So(magic[2], ShouldEqual, byte('L'))
+			So(magic[3], ShouldEqual, byte('N'))
+		})
+		// Read the file version
+		versionBytes := bytes[4:8]
+		Convey("Version should be correct", func() {
+			version := uint32FromBytes(versionBytes)
+			So(version, ShouldEqual, EDF_VERSION)
+		})
+		// Read the block size
+		blockBytes := bytes[8:12]
+		Convey("Page size should be correct", func() {
+			pageSize := uint32FromBytes(blockBytes)
+			So(pageSize, ShouldEqual, os.Getpagesize())
+		})
+	})
+}
+
 func TestFileCreate(t *testing.T) {
 	Convey("Creating a non-existent file should succeed", t, func() {
 		tempFile, err := ioutil.TempFile(os.TempDir(), "TestFileCreate")
