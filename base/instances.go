@@ -482,6 +482,8 @@ func (inst *Instances) GetClassDistributionAfterSplit(at Attribute) map[string]m
 
 // get returns the system representation (float64) of the value
 // stored at the given row and col coordinate.
+// get is the single biggest performance problem
+// have to make it faster!
 func (inst *Instances) get(row int, col int) float64 {
 	// Translate the row into an allocation
 	rowAlloc := row / int(inst.fixedAllocationRowAmount)
@@ -491,8 +493,14 @@ func (inst *Instances) get(row int, col int) float64 {
 	col *= 8
 	// Get the byte offsets
 	rawData := inst.storage.ResolveRange(inst.byteLevelMapping[rowAlloc])
-
-	return UnpackBytesToFloat(rawData[0][rowOffset*rowLength+col:])
+	if len(rawData) == 1 {
+		return UnpackBytesToFloat(rawData[0][rowOffset*rowLength+col:])
+	} else if len(rawData) == 2 {
+		return 0 // TODO: Write code to handle this case
+	} else {
+		panic("segment")
+	}
+	return 0
 }
 
 // set sets the system representation (float64) to val at the
@@ -506,8 +514,15 @@ func (inst *Instances) set(row int, col int, val float64) {
 	col *= 8
 	// Get the byte offsets
 	//	fmt.Printf("%d %d %d\n", row, int(inst.fixedAllocationRowAmount), rowAlloc)
-	rawData := inst.storage.ResolveRange(inst.byteLevelMapping[rowAlloc])
-	PackFloatToBytesInline(val, rawData[0][rowOffset*rowLength+col:])
+	mappingRange := inst.byteLevelMapping[rowAlloc]
+	rawData := inst.storage.ResolveRange(mappingRange)
+	if len(rawData) == 1 {
+		PackFloatToBytesInline(val, rawData[0][rowOffset*rowLength+col:])
+	} else if len(rawData) == 2 {
+		// TODO: write code to handle this case
+	} else {
+		panic("segment")
+	}
 }
 
 //

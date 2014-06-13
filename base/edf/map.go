@@ -351,12 +351,12 @@ func (e *EdfFile) ResolveRange(r EdfRange) [][]byte {
 	ret := make([][]byte, r.End.Segment-r.Start.Segment+1)
 	segCounter := 0
 	for segment := r.Start.Segment; segment <= r.End.Segment; segment++ {
-		ret[segCounter] = e.m[segment]
 		if segment == r.Start.Segment {
-			ret[segCounter] = ret[segCounter][r.Start.Byte:]
-		}
-		if segment == r.End.Segment {
-			ret[segCounter] = ret[segCounter][:r.End.Byte+1]
+			ret[segCounter] = e.m[segment][r.Start.Byte:]
+		} else if segment == r.End.Segment {
+			ret[segCounter] = e.m[segment][:r.End.Byte+1]
+		} else {
+			ret[segCounter] = e.m[segment]
 		}
 	}
 	return ret
