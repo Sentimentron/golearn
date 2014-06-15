@@ -44,7 +44,8 @@ func PackFloatToBytes(val float64) []byte {
 }
 
 func UnpackBytesToFloat(val []byte) float64 {
-	return math.Float64frombits(UnpackBytesToU64(val))
+	pb := unsafe.Pointer(&val[0])
+	return *(*float64)(pb)
 }
 
 func GeneratePredictionVector(from FixedDataGrid) UpdatableDataGrid {
