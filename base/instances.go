@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/sjwhitworth/golearn/base/edf"
 	"math/rand"
+	"os"
 )
 
 // Instances represents a grid of numbers (typed by Attributes)
@@ -347,21 +348,27 @@ func intraMappingCopy(mappings [][]byte, dest []byte, startOffset int) {
 	}
 }
 
-func (inst *Instances) AllocRowVector(attrs map[int]Attribute) ([][]byte, []int) {
-	ret := make([][]byte, len(attrs))
+func (inst *Instances) AllocRowVector(attrs map[int]Attribute) ([][]byte, [][]byte, []int) {
+	retRow := make([][]byte, len(attrs))
+	retBuf := make([][]byte, (os.Getpagesize() / (len(attrs) * 8) + 1)) // TODO: swap this out with something more appropriate
 	retAttr := make([]int, len(attrs))
-	for i := 0; i < len(attrs); i++ {
-		ret[i] = make([]byte, 8)
+	for i := 0; i < len(retBuf); i++ {
+		retBuf[i] = make([]byte, 8) // TODO: swap this out with a more appropriate size
 	}
 	counter := 0
 	for i := range attrs {
 		retAttr[counter] = i
 		counter++
 	}
-	return ret, retAttr
+	return retRow, retBuf, retAttr
 }
 
-func (inst *Instances) GetRow(row int, attrs []int, out [][]byte) int {
+// GetRow copies row data into out, attribute offsets are given in attrs,
+// out is the destination buffer, the []byte slice of each attribute gets
+// copied into the outer slice, the inter parameter contains the required number
+// pre-allocated []byte slices for copying inter-mapping slices
+// TODO: This can't handle rows which stretch over more than two adjacent mappings
+func (inst *Instances) GetRow(row int, attrs []int, out [][]byte, inter [][]byte) int {
 	// With 8-byte lengths, maximum span of mappings is two
 	// Need an AllocRowVector
 	var s1 []byte
@@ -383,22 +390,28 @@ func (inst *Instances) GetRow(row int, attrs []int, out [][]byte) int {
 	}
 
 	colCounter := 0
+	interCounter := 0
 	for col := range attrs {
 		s1ColOffset := rowOffset * rowLength + col * 8
-		if next != 0 {
-			byteCounter := 0
-			if s1ColOffset < len(s1) {
-				src := s1[s1ColOffset:]
-				if len(src) > 0 {
-					byteCounter += copy(out[colCounter], src)
-				}
+		byteCounter := 0
+		if s1ColOffset > len(s1) - 8 && s1ColOffset < len(s1) {
+			src := s1[s1ColOffset:]
+			if len(src) > 0 {
+				fmt.Println(interCounter)
+				byteCounter += copy(inter[interCounter], src)
 			}
-			copy(out[colCounter][byteCounter:], s2[:8-byteCounter])
+			copy(inter[interCounter][:byteCounter], s2[:8-byteCounter])
+			out[colCounter] = inter[interCounter]
+			interCounter++
+		} else if s1ColOffset >= len(s1) {
+			s1ColOffset %= len(s1)
+			out[colCounter] = s2[s1ColOffset:s1ColOffset+8]
 		} else {
-			copy(out[colCounter], s1[s1ColOffset:])
+			out[colCounter] = s1[s1ColOffset:s1ColOffset+8]
 		}
 		colCounter++
 	}
+
 	return 0
 }
 
@@ -494,9 +507,9 @@ func (inst *Instances) MapOverRowsExplicit(attrs map[int]Attribute, mapFunc func
 }
 
 func (inst *Instances) MapOverRows(attrs map[int]Attribute, mapFunc func([][]byte, int) (bool, error)) error {
-	rowBuf, attrArr := inst.AllocRowVector(attrs)
+	rowBuf, interBuf, attrArr := inst.AllocRowVector(attrs)
 	for i := 0; i < inst.Rows; i++ {
-		inst.GetRow(i, attrArr, rowBuf)
+		inst.GetRow(i, attrArr, rowBuf, interBuf)
 		ok, err := mapFunc(rowBuf, i)
 		if err != nil {
 			return err
