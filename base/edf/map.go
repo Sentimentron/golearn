@@ -347,17 +347,36 @@ func (e *EdfFile) Unmap(flags int) error {
 
 // ResolveRange returns a slice of byte slices representing
 // the underlying memory referenced by EdfRange
+// WARNING: slow
 func (e *EdfFile) ResolveRange(r EdfRange) [][]byte {
-	ret := make([][]byte, r.End.Segment-r.Start.Segment+1)
+	ret := make([][]byte, 0)
 	segCounter := 0
 	for segment := r.Start.Segment; segment <= r.End.Segment; segment++ {
 		if segment == r.Start.Segment {
-			ret[segCounter] = e.m[segment][r.Start.Byte:]
+			ret = append(ret, e.m[segment][r.Start.Byte:])
 		} else if segment == r.End.Segment {
-			ret[segCounter] = e.m[segment][:r.End.Byte+1]
+			ret = append(ret, e.m[segment][:r.End.Byte+1])
 		} else {
-			ret[segCounter] = e.m[segment]
+			ret = append(ret, e.m[segment])
 		}
+		segCounter++
 	}
 	return ret
+}
+
+// IResolveRange returns a byte slice representing the current EdfRange
+// and returns a value saying whether there's more. Subsequent calls to IncrementallyResolveRange
+// should use the value returned by the previous one until no more ranges are available.
+func (e *EdfFile) IResolveRange(r EdfRange, prev uint64) ([]byte, uint64) {
+	segment := r.Start.Segment + prev
+	if segment > r.End.Segment {
+		return nil, 0
+	}
+	if segment == r.Start.Segment {
+		return e.m[segment][r.Start.Byte:], prev + 1
+	}
+	if segment == r.End.Segment {
+		return e.m[segment][:r.End.Byte+1], 0
+	}
+	return e.m[segment], prev + 1
 }
