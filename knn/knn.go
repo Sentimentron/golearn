@@ -74,7 +74,7 @@ func (KNN *KNNClassifier) Predict(what *base.Instances) base.UpdatableDataGrid {
 	neighbours := neighbourList(make([]neighbour, KNN.NearestNeighbours+1))
 	maxMap := make(map[string] int)
 	what.MapOverRows(normalAttrs, func(pred [][]byte, predRow int) (bool, error) {
-		for i := 0; i < 3; i++ {
+		for i := 0; i < len(neighbours); i++ {
 			neighbours[i].distance = math.Inf(1)
 		}
 		for a := range maxMap {
