@@ -324,16 +324,52 @@ func (inst *Instances) DecomposeOnAttributeValues(at Attribute) map[string]Updat
 // at a particular row.
 func (inst *Instances) GetRowExplicit(attrs map[int]Attribute, row int) map[Attribute][]byte {
 	ret := make(map[Attribute][]byte)
+	// Eliminate the call to get in this function
 	for a := range attrs {
 		ret[attrs[a]] = PackFloatToBytes(inst.get(row, a))
 	}
 	return ret
 }
 
+func intraMappingCopy(mappings [][]byte, dest []byte, startOffset int) {
+	copyLen := len(dest)
+	byteCounter := 0
+	if startOffset < len(mappings[0]) {
+		// Case 1: copy from the source offset mappings[0]
+		// until the end of the source offset
+		copySrc := mappings[0][startOffset:]
+		byteCounter += copy(dest, copySrc)
+	}
+	if len(mappings[1]) > 0 {
+		// Case 2: copy any stuff at the start of mappings[1]
+		// until the end of copyLen
+		copy(dest[byteCounter:], mappings[1][:copyLen-byteCounter])
+	}
+}
+
 func (inst *Instances) GetRow(attrs map[int]Attribute, row int) [][]byte {
 	ret := make([][]byte, 0)
-	for a := range attrs {
-		ret = append(ret, PackFloatToBytes(inst.get(row, a)))
+
+	// Translate the row into an allocation
+	rowAlloc := row / int(inst.fixedAllocationRowAmount)
+	rowOffset := row % int(inst.fixedAllocationRowAmount)
+	rowLength := 8 * len(inst.attributes)
+	for col := range attrs {
+		// Translate the column into a position
+		col *= 8
+		// Get the byte offsets
+		rawData := inst.storage.ResolveRange(inst.byteLevelMapping[rowAlloc])
+		if len(rawData) == 1 {
+			ret = append(ret, rawData[0][rowOffset*rowLength+col:])
+		} else if len(rawData) == 2 {
+			buf := make([]byte, 8)
+			// Have to copy rawData:len bytes from one mapping
+			// Have to copy len(rawData)-(rawData-len) bytes from the other
+			intraMappingCopy(rawData, buf, rowOffset * rowLength + col)
+			ret = append(ret, buf)
+		} else {
+			panic("segment")
+		}
 	}
 	return ret
 }
