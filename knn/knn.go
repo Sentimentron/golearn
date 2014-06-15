@@ -23,7 +23,7 @@ func (n neighbourList) Swap(i, j int) {
 	n[i], n[j] = n[j], n[i]
 }
 func (n neighbourList) Less(i, j int) bool {
-	return n[i].distance > n[j].distance
+	return n[i].distance < n[j].distance
 }
 
 // A KNN Classifier. Consists of a data matrix, associated labels in the same order as the matrix, and a distance function.
@@ -110,9 +110,6 @@ func (KNN *KNNClassifier) Predict(what *base.Instances) base.UpdatableDataGrid {
 
 		ret.AppendRowExplicit(map[base.Attribute][]byte{classAttr: classAttr.GetSysValFromString(maxClass)})
 		fmt.Println(predRow)
-		if predRow >= 20 {
-			return false, nil
-		}
 		return true, nil
 	})
 
