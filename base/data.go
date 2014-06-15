@@ -44,7 +44,8 @@ type FixedDataGrid interface {
 	// RowStr returns the string representation of a given row
 	RowStr(int) string
 	// GetRow returns the GetRows() response at a given row
-	GetRow(map[int]Attribute, int) [][]byte
+	// GetRow(map[int]Attribute, int) [][]byte
+        GetRow(int, map[int]Attribute, [][]byte) int
 	// GetRowExplicit
 	GetRowExplicit(map[int]Attribute, int) map[Attribute][]byte
 	// Shuffle randomizes the row order

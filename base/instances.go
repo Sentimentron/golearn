@@ -347,31 +347,45 @@ func intraMappingCopy(mappings [][]byte, dest []byte, startOffset int) {
 	}
 }
 
-func (inst *Instances) GetRow(attrs map[int]Attribute, row int) [][]byte {
-	ret := make([][]byte, 0)
+func (inst *Instances) AllocRowVector(attrs map[int]Attribute) [][]byte {
+	ret := make([][]byte, len(attrs))
+	for i := 0; i < len(attrs); i++ {
+		ret[i] = make([]byte, 8)
+	}
+	return ret
+}
+
+func (inst *Instances) GetRow(row int, attrs map[int]Attribute, out [][]byte) int {
+	// With 8-byte lengths, maximum span of mappings is two
+	// Need an AllocRowVector
+	var s1 []byte
 
 	// Translate the row into an allocation
 	rowAlloc := row / int(inst.fixedAllocationRowAmount)
 	rowOffset := row % int(inst.fixedAllocationRowAmount)
 	rowLength := 8 * len(inst.attributes)
+	rowRange := inst.byteLevelMapping[rowAlloc]
+	s1, next := inst.storage.IResolveRange(rowRange, 0)
+	colCounter := 0
 	for col := range attrs {
-		// Translate the column into a position
-		col *= 8
-		// Get the byte offsets
-		rawData := inst.storage.ResolveRange(inst.byteLevelMapping[rowAlloc])
-		if len(rawData) == 1 {
-			ret = append(ret, rawData[0][rowOffset*rowLength+col:])
-		} else if len(rawData) == 2 {
-			buf := make([]byte, 8)
-			// Have to copy rawData:len bytes from one mapping
-			// Have to copy len(rawData)-(rawData-len) bytes from the other
-			intraMappingCopy(rawData, buf, rowOffset * rowLength + col)
-			ret = append(ret, buf)
+		s1ColOffset := rowOffset * rowLength + col * 8
+		if next != 0 {
+			byteCounter := 0
+			s2Counter := 0
+			s2, _ := inst.storage.IResolveRange(rowRange, next)
+			for byteCounter = 0; byteCounter < 8 && s1ColOffset + byteCounter < len(s1); byteCounter++ {
+				out[colCounter][byteCounter] = s1[s1ColOffset + byteCounter]
+			}
+			for byteCounter = byteCounter; byteCounter < 8; byteCounter++ {
+				out[colCounter][byteCounter] = s2[s2Counter]
+				s2Counter++
+			}
 		} else {
-			panic("segment")
+			out[colCounter] = s1[s1ColOffset:s1ColOffset+8]
 		}
+		colCounter++
 	}
-	return ret
+	return 0
 }
 
 // AddAttribute adds a new Attribute to this set of Instances
@@ -466,9 +480,10 @@ func (inst *Instances) MapOverRowsExplicit(attrs map[int]Attribute, mapFunc func
 }
 
 func (inst *Instances) MapOverRows(attrs map[int]Attribute, mapFunc func([][]byte, int) (bool, error)) error {
+	rowBuf := inst.AllocRowVector(attrs)
 	for i := 0; i < inst.Rows; i++ {
-		row := inst.GetRow(attrs, i)
-		ok, err := mapFunc(row, i)
+		inst.GetRow(i, attrs, rowBuf)
+		ok, err := mapFunc(rowBuf, i)
 		if err != nil {
 			return err
 		}
