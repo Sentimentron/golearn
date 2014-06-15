@@ -6,8 +6,25 @@ package knn
 import (
 	"fmt"
 	base "github.com/sjwhitworth/golearn/base"
-	util "github.com/sjwhitworth/golearn/utilities"
+	"math"
+	"sort"
 )
+
+type neighbour struct {
+	rowNumber int
+	distance float64
+}
+
+type neighbourList []neighbour
+func (n neighbourList) Len() int {
+	return len(n)
+}
+func (n neighbourList) Swap(i, j int) {
+	n[i], n[j] = n[j], n[i]
+}
+func (n neighbourList) Less(i, j int) bool {
+	return n[i].distance > n[j].distance
+}
 
 // A KNN Classifier. Consists of a data matrix, associated labels in the same order as the matrix, and a distance function.
 // The accepted distance functions at this time are 'euclidean' and 'manhattan'.
@@ -54,10 +71,15 @@ func (KNN *KNNClassifier) Predict(what *base.Instances) base.UpdatableDataGrid {
 	}
 
 	// Map over the rows
-
-	rownumbers := make(map[int]float64)
+	neighbours := neighbourList(make([]neighbour, KNN.NearestNeighbours+1))
+	maxMap := make(map[string] int)
 	what.MapOverRows(normalAttrs, func(pred [][]byte, predRow int) (bool, error) {
-		maxmap := make(map[string]int)
+		for i := 0; i < 3; i++ {
+			neighbours[i].distance = math.Inf(1)
+		}
+		for a := range maxMap {
+			maxMap[a] = 0
+		}
 		// For each item in training...
 		KNN.TrainingData.MapOverRows(normalAttrs, func(train [][]byte, trainRow int) (bool, error) {
 			distance := 0.0
@@ -66,23 +88,23 @@ func (KNN *KNNClassifier) Predict(what *base.Instances) base.UpdatableDataGrid {
 				otherVal := base.UnpackBytesToFloat(pred[a])
 				distance += (thisVal - otherVal) * (thisVal - otherVal)
 			}
-			rownumbers[trainRow] = distance
+			neighbours[KNN.NearestNeighbours] = neighbour{trainRow, distance}
+			sort.Sort(neighbours)
 			return true, nil
 		})
 
-		sorted := util.SortIntMap(rownumbers)
-		values := sorted[:KNN.NearestNeighbours]
-		for _, elem := range values {
-			label, _ := base.GetClass(KNN.TrainingData, elem)
-			maxmap[label]++
+		for i := 0; i < KNN.NearestNeighbours; i++ {
+			rowNumber := neighbours[i].rowNumber
+			label, _ := base.GetClass(KNN.TrainingData, rowNumber)
+			maxMap[label]++
 		}
 
 		maxClass := ""
 		maxVal := 0
-		for i := range maxmap {
-			if maxmap[i] > maxVal {
+		for i := range maxMap {
+			if maxMap[i] > maxVal {
 				maxClass = i
-				maxVal = maxmap[i]
+				maxVal = maxMap[i]
 			}
 		}
 
