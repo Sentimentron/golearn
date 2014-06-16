@@ -370,6 +370,63 @@ func (inst *Instances) AllocRowVector(attrs map[int]Attribute) ([][]byte, [][]by
 	return retRow, retBuf, retAttr
 }
 
+func (inst *Instances) getRowSingleMap(row int, attrs []int, out [][]byte, s1 []byte) {
+	var col int
+	var colCounter int
+	var outSliceHeader *reflect.SliceHeader
+	var s1ColOffset int
+	var rowOffset int
+	var s1BaseOffset int
+	colCounter = 0
+
+	rowOffset = row % int(inst.fixedAllocationRowAmount)
+	s1BaseOffset = rowOffset * 8 * len(inst.attributes)
+
+	for col = range attrs {
+		s1ColOffset = s1BaseOffset + (col * 8)
+		outSliceHeader = (*reflect.SliceHeader)(unsafe.Pointer(&out[colCounter]))
+		outSliceHeader.Data = uintptr(unsafe.Pointer(&s1[s1ColOffset]))
+		colCounter++
+	}
+}
+
+func (inst *Instances) getRowSpanningTwoMaps(row int, attrs []int, out [][]byte, inter [][]byte, s1 []byte, s2 []byte) {
+	// With 8-byte lengths, maximum span of mappings is two
+	var byteCounter int
+	var col int
+	var colCounter int
+	var interCounter int
+	var outSliceHeader *reflect.SliceHeader
+	var rowOffset int
+	var s1BaseOffset int
+	var s1ColOffset int
+	var src []byte
+
+	rowOffset = row % int(inst.fixedAllocationRowAmount)
+	colCounter = 0
+	interCounter = 0
+	s1BaseOffset = rowOffset * 8 * len(inst.attributes)
+	for col = range attrs {
+		s1ColOffset = s1BaseOffset + (col * 8)
+		outSliceHeader = (*reflect.SliceHeader)(unsafe.Pointer(&out[colCounter]))
+		if s1ColOffset < len(s1) && s1ColOffset > len(s1) - 8 {
+			src = s1[s1ColOffset:]
+			if len(src) > 0 {
+				byteCounter = copy(inter[interCounter], src)
+			}
+			copy(inter[interCounter][byteCounter:], s2[:8-byteCounter])
+			out[colCounter] = inter[interCounter]
+			interCounter++
+		} else if s1ColOffset >= len(s1) {
+			s1ColOffset %= len(s1)
+			outSliceHeader.Data = uintptr(unsafe.Pointer(&s2[s1ColOffset]))
+		} else {
+			outSliceHeader.Data = uintptr(unsafe.Pointer(&s1[s1ColOffset]))
+		}
+		colCounter++
+	}
+}
+
 // GetRow copies row data into out, attribute offsets are given in attrs,
 // out is the destination buffer, the []byte slice of each attribute gets
 // copied into the outer slice, the inter parameter contains the required number
@@ -378,17 +435,31 @@ func (inst *Instances) AllocRowVector(attrs map[int]Attribute) ([][]byte, [][]by
 func (inst *Instances) GetRow(row int, attrs []int, out [][]byte, inter [][]byte) int {
 	// With 8-byte lengths, maximum span of mappings is two
 	// Need an AllocRowVector
+	var byteCounter int
+	var col int
+	var colCounter int
+	var interCounter int
+	var next uint64
+	var outSliceHeader *reflect.SliceHeader
+	var rowAlloc int
+	var rowLength int
+	var rowOffset int
+	var rowRange edf.EdfRange
 	var s1 []byte
+	var s1BaseOffset int
+	var s1ColOffset int
 	var s2 []byte
+	var src []byte
+
 
 	// Translate the row into an allocation
-	rowAlloc := row / int(inst.fixedAllocationRowAmount)
-	rowOffset := row % int(inst.fixedAllocationRowAmount)
-	rowLength := 8 * len(inst.attributes)
-	rowRange := inst.byteLevelMapping[rowAlloc]
+	rowAlloc = row / int(inst.fixedAllocationRowAmount)
+	rowOffset = row % int(inst.fixedAllocationRowAmount)
+	rowLength = 8 * len(inst.attributes)
+	rowRange = inst.byteLevelMapping[rowAlloc]
 
 	// Resolve the primary block
-	s1, next := inst.storage.IResolveRange(rowRange, 0)
+	s1, next = inst.storage.IResolveRange(rowRange, 0)
 	// Resolve the next block (if relevant)
 	if next != 0 {
 		s2, _ = inst.storage.IResolveRange(rowRange, next)
@@ -396,19 +467,18 @@ func (inst *Instances) GetRow(row int, attrs []int, out [][]byte, inter [][]byte
 		s2 = nil
 	}
 
-	colCounter := 0
-	interCounter := 0
-	s1BaseOffset := rowOffset * rowLength
-	for col := range attrs {
-		s1ColOffset := s1BaseOffset + (col * 8)
-		outSliceHeader := (*reflect.SliceHeader)(unsafe.Pointer(&out[colCounter]))
-		byteCounter := 0
-		if s1ColOffset > len(s1) - 8 && s1ColOffset < len(s1) {
-			src := s1[s1ColOffset:]
+	colCounter = 0
+	interCounter = 0
+	s1BaseOffset = rowOffset * rowLength
+	for col = range attrs {
+		s1ColOffset = s1BaseOffset + (col * 8)
+		outSliceHeader = (*reflect.SliceHeader)(unsafe.Pointer(&out[colCounter]))
+		if s1ColOffset < len(s1) && s1ColOffset > len(s1) - 8 {
+			src = s1[s1ColOffset:]
 			if len(src) > 0 {
-				byteCounter += copy(inter[interCounter], src)
+				byteCounter = copy(inter[interCounter], src)
 			}
-			copy(inter[interCounter][:byteCounter], s2[:8-byteCounter])
+			copy(inter[interCounter][byteCounter:], s2[:8-byteCounter])
 			out[colCounter] = inter[interCounter]
 			interCounter++
 		} else if s1ColOffset >= len(s1) {
@@ -515,9 +585,34 @@ func (inst *Instances) MapOverRowsExplicit(attrs map[int]Attribute, mapFunc func
 }
 
 func (inst *Instances) MapOverRows(attrs map[int]Attribute, mapFunc func([][]byte, int) (bool, error)) error {
+	var rowAlloc int
+	var rowRange edf.EdfRange
+	var s1 []byte
+	var s2 []byte
+	var next uint64
+
 	rowBuf, interBuf, attrArr := inst.AllocRowVector(attrs)
+
 	for i := 0; i < inst.Rows; i++ {
-		inst.GetRow(i, attrArr, rowBuf, interBuf)
+		if i % int(inst.fixedAllocationRowAmount) == 0 {
+			// Transform the row into an allocation
+			rowAlloc = i / int(inst.fixedAllocationRowAmount)
+			rowRange = inst.byteLevelMapping[rowAlloc]
+			// Resolve the primary block
+			s1, next = inst.storage.IResolveRange(rowRange, 0)
+			// Resolve the next block (if relevant)
+			if next != 0 {
+				s2, _ = inst.storage.IResolveRange(rowRange, next)
+			} else {
+				s2 = nil
+			}
+		}
+		if s2 == nil {
+			inst.getRowSingleMap(i, attrArr, rowBuf, s1)
+		} else {
+			inst.getRowSpanningTwoMaps(i, attrArr, rowBuf, interBuf, s1, s2)
+		}
+
 		ok, err := mapFunc(rowBuf, i)
 		if err != nil {
 			return err
