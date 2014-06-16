@@ -7,6 +7,8 @@ import (
 	"github.com/sjwhitworth/golearn/base/edf"
 	"math/rand"
 	"os"
+	"reflect"
+	"unsafe"
 )
 
 // Instances represents a grid of numbers (typed by Attributes)
@@ -355,6 +357,11 @@ func (inst *Instances) AllocRowVector(attrs map[int]Attribute) ([][]byte, [][]by
 	for i := 0; i < len(retBuf); i++ {
 		retBuf[i] = make([]byte, 8) // TODO: swap this out with a more appropriate size
 	}
+	for i := 0; i < len(attrs); i++ {
+		header := (*reflect.SliceHeader)(unsafe.Pointer(&retRow[i]))
+		header.Len = 8
+		header.Cap = 8
+	}
 	counter := 0
 	for i := range attrs {
 		retAttr[counter] = i
@@ -391,13 +398,14 @@ func (inst *Instances) GetRow(row int, attrs []int, out [][]byte, inter [][]byte
 
 	colCounter := 0
 	interCounter := 0
+	s1BaseOffset := rowOffset * rowLength
 	for col := range attrs {
-		s1ColOffset := rowOffset * rowLength + col * 8
+		s1ColOffset := s1BaseOffset + (col * 8)
+		outSliceHeader := (*reflect.SliceHeader)(unsafe.Pointer(&out[colCounter]))
 		byteCounter := 0
 		if s1ColOffset > len(s1) - 8 && s1ColOffset < len(s1) {
 			src := s1[s1ColOffset:]
 			if len(src) > 0 {
-				fmt.Println(interCounter)
 				byteCounter += copy(inter[interCounter], src)
 			}
 			copy(inter[interCounter][:byteCounter], s2[:8-byteCounter])
@@ -405,9 +413,9 @@ func (inst *Instances) GetRow(row int, attrs []int, out [][]byte, inter [][]byte
 			interCounter++
 		} else if s1ColOffset >= len(s1) {
 			s1ColOffset %= len(s1)
-			out[colCounter] = s2[s1ColOffset:s1ColOffset+8]
+			outSliceHeader.Data = uintptr(unsafe.Pointer(&s2[s1ColOffset]))
 		} else {
-			out[colCounter] = s1[s1ColOffset:s1ColOffset+8]
+			outSliceHeader.Data = uintptr(unsafe.Pointer(&s1[s1ColOffset]))
 		}
 		colCounter++
 	}
