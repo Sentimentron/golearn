@@ -47,7 +47,6 @@ func (r *EdfRange) Size() uint64 {
 // edfCallFree is a half-baked finalizer called on garbage
 // collection to ensure that the mapping gets freed
 func edfCallFree(e *EdfFile) {
-	fmt.Println("WARNING: Call Unmap() instead of allowing garbage collection")
 	e.Unmap(EDF_UNMAP_NOSYNC)
 }
 
