@@ -64,10 +64,10 @@ func (f *FloatAttributeGroup) GetRowSize() uint {
 }
 
 func (f *FloatAttributeGroup) AddAttribute(srcA Attribute) AddAttributeStatus {
-	if len(f.memory) > 0 {
+	if len(f.memorySlices) > 0 {
 		return AddAttributeNotAllowed
 	}
-	if a, ok = srcA.(*base.FloatAttribute); !ok {
+	if a, ok := srcA.(*FloatAttribute); !ok {
 		return AddAttributeWrongType
 	} else {
 		f.attrMapping[srcA] = f.attrCount
@@ -83,7 +83,7 @@ func (f *FloatAttributeGroup) HasAttribute(a Attribute) bool {
 
 func (f *FloatAttributeGroup) addMemory(b []byte) addMemoryStatus {
 	rowSize := f.GetRowSize()
-	memorySize := len(b)
+	memorySize := uint(len(b))
 	rowAlloc := memorySize / rowSize
 	if rowAlloc * rowSize > memorySize {
 		rowAlloc--
@@ -97,14 +97,14 @@ func (f *FloatAttributeGroup) addMemory(b []byte) addMemoryStatus {
 	return AddedMemorySuccess
 }
 
-func (f *FloatAttributeGroup) getRow(row uint) (GetRowStatus, uint, uint, []byte) {
+func (f *FloatAttributeGroup) getRow(row uint) (getRowStatus, uint, uint, []byte) {
 	var rowSum uint
 	var slice uint
 	var rowAlloc uint
 
 	// Double check we have that row
-	if row > f.rowAlloc {
-		return GetRowRangeError, 0, nil
+	if row > f.rowTotal {
+		return GetRowRangeError, 0, 0, nil
 	}
 
 	// Find the slice which contains the row
@@ -133,11 +133,11 @@ func (f *FloatAttributeGroup) getRowIter(rowOffset uint, slice uint) (getRowStat
 	rowAlloc := f.memoryRows[slice]
 	if rowAlloc < rowOffset {
 		slice += 1
-		if slice >= len(f.memoryRows) {
+		if slice >= uint(len(f.memoryRows)) {
 			// Out of bounds on the last slice
-			return GetRowRangeError, 0, nil
+			return GetRowRangeError, nil
 		}
-		return GetRowNextSliceError, slice, nil
+		return GetRowNextSliceError, nil
 	}
 	// Compute the row size
 	rowSize := f.GetRowSize()
@@ -145,5 +145,5 @@ func (f *FloatAttributeGroup) getRowIter(rowOffset uint, slice uint) (getRowStat
 	// Get the row slice
 	physicalOffset := rowSize * rowOffset
 	ret := f.memorySlices[slice][physicalOffset : physicalOffset + rowSize + 1]
-	return GetRowSuccess, slice, ret
+	return GetRowSuccess, ret
 }
