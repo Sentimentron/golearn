@@ -35,29 +35,6 @@ type Instances struct {
 	rowsAllocated int
 }
 
-func xorFloatOp(item float64) float64 {
-	var ret float64
-	var tmp int64
-	buf := bytes.NewBuffer(nil)
-	binary.Write(buf, binary.LittleEndian, item)
-	binary.Read(buf, binary.LittleEndian, &tmp)
-	tmp ^= -1 << 63
-	binary.Write(buf, binary.LittleEndian, tmp)
-	binary.Read(buf, binary.LittleEndian, &ret)
-	return ret
-}
-
-func printFloatByteArr(arr [][]byte) {
-	buf := bytes.NewBuffer(nil)
-	var f float64
-	for _, b := range arr {
-		buf.Write(b)
-		binary.Read(buf, binary.LittleEndian, &f)
-		f = xorFloatOp(f)
-		fmt.Println(f)
-	}
-}
-
 func (inst *Instances) resolveToInternal(attrs []Attribute) ([]int, error) {
 	ret := make([]int, len(attrs))
 	counter := 0
