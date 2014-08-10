@@ -14,5 +14,7 @@ type TimeGrid interface {
 	// (can't be interpolated)
 	PreciselyAt(TimePoint, AttributeSpec) []byte
 	// Sets the value of an Attribute at a given time
-	Set(TimePoint, AttributeSpec, []byte) error
+	Set(TimePoint, []AttributeSpec, [][]byte) error
+	// Gets the time Attribute
+	GetTimeAttribute() Attribute
 }
