@@ -24,9 +24,19 @@ func NewIrregularTimeSeries() *IrregularTimeSeries {
 		AttributeSpec{},
 		0,
 	}
+	// Create an AttributeGroup for the Time
+	err := ret.CreateAttributeGroup("TIME", 8)
+	if err != nil {
+		panic(err)
+	}
 	// Create the time Attribute
 	attr := NewEpochNSTimeAttribute("Time", time.RFC3339)
-	ret.timeAttrSpec = ret.AddAttribute(attr)
+	// Insert the thing
+	tSpec, err := ret.AddAttributeToAttributeGroup(attr, "TIME")
+	if err != nil {
+		panic(err)
+	}
+	ret.timeAttrSpec = tSpec
 	return ret
 }
 
@@ -52,10 +62,18 @@ func (t *IrregularTimeSeries) searchForTimePointOffset(tp TimePoint) int {
 }
 
 func (t *IrregularTimeSeries) insertTimePointAtOffset(tp TimePoint, offset int) {
-	shift := t.points[offset+1:]
-	stay := t.points[:offset+1]
-	t.points = append(stay, tp)
-	t.points = append(t.points, shift...)
+	newPoints := make([]TimePoint, len(t.points)+1)
+	for i := range t.points {
+		if i < offset {
+			newPoints[i] = t.points[i]
+		} else if i == offset {
+			newPoints[i] = tp
+			newPoints[i+1] = t.points[i]
+		} else {
+			newPoints[i+1] = t.points[i]
+		}
+	}
+	t.points = newPoints
 }
 
 func (t *IrregularTimeSeries) lookupRow(tp TimePoint) (int, bool) {
