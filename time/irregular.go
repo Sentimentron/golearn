@@ -61,6 +61,8 @@ func (t *IrregularTimeSeries) searchForTimePointOffset(tp TimePoint) int {
 	}
 }
 
+// insertPointAtTimeOffset performs the insertion part of insertion-sort
+// into the timepoint list
 func (t *IrregularTimeSeries) insertTimePointAtOffset(tp TimePoint, offset int) {
 	newPoints := make([]TimePoint, len(t.points)+1)
 	for i := range t.points {
@@ -76,6 +78,8 @@ func (t *IrregularTimeSeries) insertTimePointAtOffset(tp TimePoint, offset int) 
 	t.points = newPoints
 }
 
+// lookupRow runs binary search on the sorted list of stored TimePoints
+// and returns a row number. The status flag is true if the lookup was successful.
 func (t *IrregularTimeSeries) lookupRow(tp TimePoint) (int, bool) {
 	offset := t.searchForTimePointOffset(tp)
 	tRef := t.points[offset]
