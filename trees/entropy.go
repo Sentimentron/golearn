@@ -51,7 +51,20 @@ func (r *InformationGainRuleGenerator) GetSplitAttributeFromSelection(considered
 	// Compute the information gain for each attribute
 	for _, s := range consideredAttributes {
 		proposedClassDist := base.GetClassDistributionAfterSplit(f, s)
-		localEntropy := getSplitEntropy(proposedClassDist)
+		localEntropy := 0.0
+		count := 0.0
+		for c := range proposedClassDist {
+			for b := range proposedClassDist[c] {
+				count += float64(proposedClassDist[c][b])
+			}
+		}
+		for c := range proposedClassDist {
+			localCount := 0.0
+			for b := range proposedClassDist[c] {
+				localCount += float64(proposedClassDist[c][b])
+			}
+			localEntropy += localCount/count * getBaseEntropy(proposedClassDist[c])
+		}
 		informationGain := baseEntropy - localEntropy
 		if informationGain > maxGain {
 			maxGain = informationGain
@@ -67,29 +80,6 @@ func (r *InformationGainRuleGenerator) GetSplitAttributeFromSelection(considered
 // Entropy functions
 //
 
-// getSplitEntropy determines the entropy of the target
-// class distribution after splitting on an base.Attribute
-func getSplitEntropy(s map[string]map[string]int) float64 {
-	ret := 0.0
-	count := 0
-	for a := range s {
-		for c := range s[a] {
-			count += s[a][c]
-		}
-	}
-	for a := range s {
-		total := 0.0
-		for c := range s[a] {
-			total += float64(s[a][c])
-		}
-		for c := range s[a] {
-			ret -= float64(s[a][c]) / float64(count) * math.Log(float64(s[a][c])/float64(count)) / math.Log(2)
-		}
-		ret += total / float64(count) * math.Log(total/float64(count)) / math.Log(2)
-	}
-	return ret
-}
-
 // getBaseEntropy determines the entropy of the target
 // class distribution before splitting on an base.Attribute
 func getBaseEntropy(s map[string]int) float64 {
@@ -99,7 +89,7 @@ func getBaseEntropy(s map[string]int) float64 {
 		count += s[k]
 	}
 	for k := range s {
-		ret -= float64(s[k]) / float64(count) * math.Log(float64(s[k])/float64(count)) / math.Log(2)
+		ret += float64(s[k]) / float64(count) * math.Log(float64(s[k])/float64(count)) / math.Log(2)
 	}
-	return ret
+	return -ret
 }

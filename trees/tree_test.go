@@ -98,7 +98,7 @@ func TestRandomTreeClassification(t *testing.T) {
 	})
 }
 
-func TestPRIVATEgetSplitEntropy(t *testing.T) {
+/*func TestPRIVATEgetSplitEntropy(t *testing.T) {
 	outlook := make(map[string]map[string]int)
 	outlook["sunny"] = make(map[string]int)
 	outlook["overcast"] = make(map[string]int)
@@ -112,7 +112,7 @@ func TestPRIVATEgetSplitEntropy(t *testing.T) {
 	Convey("Should calculate split entropy accurately", t, func() {
 		So(getSplitEntropy(outlook), ShouldAlmostEqual, 0.694, 0.001)
 	})
-}
+}*/
 
 func TestID3Inference(t *testing.T) {
 	Convey("Producing a decision tree with ID3 inference on a dataset", t, func() {

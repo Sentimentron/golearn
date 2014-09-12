@@ -26,7 +26,7 @@ func main() {
 	}
 
 	// Discretise the iris dataset with Chi-Merge
-	filt := filters.NewChiMergeFilter(iris, 0.99)
+	filt := filters.NewChiMergeFilter(iris, 0.60)
 	for _, a := range base.NonClassFloatAttributes(iris) {
 		filt.AddAttribute(a)
 	}
@@ -39,7 +39,7 @@ func main() {
 	//
 	// First up, use ID3
 	//
-	tree = trees.NewID3DecisionTree(0.6)
+	tree = trees.NewID3DecisionTree(0.2)
 	// (Parameter controls train-prune split.)
 
 	// Train the ID3 tree
