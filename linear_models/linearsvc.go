@@ -8,6 +8,11 @@ import (
 type LinearSVC struct {
 	param *Parameter
 	model *Model
+	// If True, then the class weights will be set to a.x + b.y = 1
+	// a.x + b.(1-x) = 1
+	// a.x - b.x + b = 1
+	Class1Weight float64
+	Class2Weight float64
 }
 
 func NewLinearSVC(loss, penalty string, dual bool, C float64, eps float64) (*LinearSVC, error) {
@@ -38,6 +43,8 @@ func NewLinearSVC(loss, penalty string, dual bool, C float64, eps float64) (*Lin
 	lr := LinearSVC{}
 	lr.param = NewParameter(solver_type, C, eps)
 	lr.model = nil
+	lr.Class1Weight = 1.0
+	lr.Class2Weight = 1.0
 	return &lr, nil
 }
 
@@ -45,6 +52,7 @@ func (lr *LinearSVC) Fit(X base.FixedDataGrid) error {
 	problemVec := convertInstancesToProblemVec(X)
 	labelVec := convertInstancesToLabelVec(X)
 	prob := NewProblem(problemVec, labelVec, 0)
+	lr.param.UpdateClassWeights([]float64{lr.Class1Weight, lr.Class2Weight})
 	lr.model = Train(prob, lr.param)
 	return nil
 }

@@ -12,6 +12,8 @@ type Problem struct {
 
 type Parameter struct {
 	c_param C.struct_parameter
+	weights []float64
+	labels  []int // Makes sure these things stick around
 }
 
 type Model struct {
@@ -41,7 +43,10 @@ func NewParameter(solver_type int, C float64, eps float64) *Parameter {
 	return &param
 }
 
-func NewWeightedParamter(
+// NewWeightedParameter creates an SVM parameter with
+// some class weights. All other values are the same
+// as NewParameter.
+func NewWeightedParameter(
 	solver_type int,
 	C, eps float64,
 	labels []int,
@@ -61,8 +66,29 @@ func NewWeightedParamter(
 	l = (*C.int)(unsafe.Pointer(&(labels[0])))
 	param.c_param.weight_label = l
 	param.c_param.weight = w
+	param.weights = weights
+	param.labels = labels
 
 	return &param
+}
+
+// UpdateWeights takes a list of class weights (in order
+// of class index) and updates the internal weights representation.
+func (p *Parameter) UpdateClassWeights(weights []float64) {
+	var w *C.double
+	var l *C.int
+	// Construct class indexes
+	labels := make([]int, len(weights))
+	for i := range weights {
+		labels[i] = i
+	}
+	p.labels = labels
+	p.weights = weights
+
+	w = (*C.double)(unsafe.Pointer(&(weights[0])))
+	l = (*C.int)(unsafe.Pointer(&(labels[0])))
+	p.c_param.weight_label = l
+	p.c_param.weight = w
 }
 
 func NewProblem(X [][]float64, y []float64, bias float64) *Problem {
