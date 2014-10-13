@@ -4,6 +4,7 @@ package linear_models
 #include "linear.h"
 */
 import "C"
+import "unsafe"
 
 type Problem struct {
 	c_prob C.struct_problem
@@ -36,6 +37,30 @@ func NewParameter(solver_type int, C float64, eps float64) *Parameter {
 	param.c_param.nr_weight = C.int(0)
 	param.c_param.weight_label = nil
 	param.c_param.weight = nil
+
+	return &param
+}
+
+func NewWeightedParamter(
+	solver_type int,
+	C, eps float64,
+	labels []int,
+	weights []float64,
+) *Parameter {
+
+	var w *C.double
+	var l *C.int
+	var param Parameter
+	// Standard stuff
+	param.c_param.solver_type = C.int(solver_type)
+	param.c_param.eps = C.double(eps)
+	param.c_param.C = C.double(C)
+	param.c_param.nr_weight = C.int(0)
+	// Casting
+	w = (*C.double)(unsafe.Pointer(&(weights[0])))
+	l = (*C.int)(unsafe.Pointer(&(labels[0])))
+	param.c_param.weight_label = l
+	param.c_param.weight = w
 
 	return &param
 }
