@@ -5,6 +5,36 @@ import (
 	"github.com/sjwhitworth/golearn/base"
 )
 
+func generateClassWeightVectorFromDist(X base.FixedDataGrid) []float64 {
+	classDist := base.GetClassDistributionByCategoricalValue(X)
+	ret := make([]float64, len(classDist))
+	for i, c := range classDist {
+		if c == 0 {
+			ret[i] = 1.0
+		} else {
+			ret[i] = 1.0 / float64(c)
+		}
+	}
+	return ret
+}
+
+func generateClassWeightVectorFromFixed(X base.FixedDataGrid) []float64 {
+	classAttrs := X.AllClassAttributes()
+	if len(classAttrs) != 1 {
+		panic("Wrong number of class Attributes")
+	}
+	if cat, ok := classAttrs[0].(*base.CategoricalAttribute); ok {
+		length := len(cat.GetValues())
+		ret := make([]float64, length)
+		for i := range ret {
+			ret[i] = 1.0
+		}
+		return ret
+	} else {
+		panic("Must be a CategoricalAttribute")
+	}
+}
+
 func convertInstancesToProblemVec(X base.FixedDataGrid) [][]float64 {
 	// Allocate problem array
 	_, rows := X.Size()

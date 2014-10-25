@@ -78,6 +78,37 @@ func SetClass(at UpdatableDataGrid, row int, class string) {
 	at.Set(classAttrSpec, row, classBytes)
 }
 
+// GetClassDistributionByIntegerVal returns a vector containing
+// the count of each class vector (indexed by the class' system
+// integer representation)
+func GetClassDistributionByCategoricalValue(inst FixedDataGrid) []int {
+
+	var classAttr *CategoricalAttribute
+	var ok bool
+	// Get the class variable
+	attrs := inst.AllClassAttributes()
+	if len(attrs) != 1 {
+		panic("Wrong number of class variables")
+	}
+	if classAttr, ok = attrs[0].(*CategoricalAttribute); !ok {
+		panic("Class Attribute must be a CategoricalAttribute")
+	}
+
+	// Get the number of class values
+	classLen := len(classAttr.GetValues())
+	ret := make([]int, classLen)
+
+	// Map through everything
+	specs := ResolveAttributes(inst, attrs)
+	inst.MapOverRows(specs, func(vals [][]byte, row int) (bool, error) {
+		index := UnpackBytesToU64(vals[0])
+		ret[int(index)]++
+		return false, nil
+	})
+
+	return ret
+}
+
 // GetClassDistribution returns a map containing the count of each
 // class type (indexed by the class' string representation).
 func GetClassDistribution(inst FixedDataGrid) map[string]int {
