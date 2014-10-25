@@ -78,6 +78,38 @@ func SetClass(at UpdatableDataGrid, row int, class string) {
 	at.Set(classAttrSpec, row, classBytes)
 }
 
+// GetClassDistributionByBinaryFloatValue returns the count of each row
+// which has a float value close to 0.0 or 1.0.
+func GetClassDistributionByBinaryFloatValue(inst FixedDataGrid) []int {
+
+	// Get the class variable
+	attrs := inst.AllClassAttributes()
+	if len(attrs) != 1 {
+		panic(fmt.Errorf("Wrong number of class variables (has %d, should be 1)", len(attrs)))
+	}
+	if _, ok := attrs[0].(*FloatAttribute); !ok {
+		panic(fmt.Errorf("Class Attribute must be FloatAttribute (is %s)", attrs[0]))
+	}
+
+	// Get the number of class values
+	ret := make([]int, 2)
+
+	// Map through everything
+	specs := ResolveAttributes(inst, attrs)
+	inst.MapOverRows(specs, func(vals [][]byte, row int) (bool, error) {
+		index := UnpackBytesToFloat(vals[0])
+		if index > 0.5 {
+			ret[1]++
+		} else {
+			ret[0]++
+		}
+
+		return false, nil
+	})
+
+	return ret
+}
+
 // GetClassDistributionByIntegerVal returns a vector containing
 // the count of each class vector (indexed by the class' system
 // integer representation)
@@ -88,10 +120,10 @@ func GetClassDistributionByCategoricalValue(inst FixedDataGrid) []int {
 	// Get the class variable
 	attrs := inst.AllClassAttributes()
 	if len(attrs) != 1 {
-		panic("Wrong number of class variables")
+		panic(fmt.Errorf("Wrong number of class variables (has %d, should be 1)", len(attrs)))
 	}
 	if classAttr, ok = attrs[0].(*CategoricalAttribute); !ok {
-		panic("Class Attribute must be a CategoricalAttribute")
+		panic(fmt.Errorf("Class Attribute must be a CategoricalAttribute (is %s)", attrs[0]))
 	}
 
 	// Get the number of class values

@@ -25,7 +25,7 @@ import (
 //
 // Dual indicates whether the solution is primary or dual.
 type LinearSVCParams struct {
-	solverType                 int
+	SolverType                 int
 	ClassWeights               []float64
 	C                          float64
 	Eps                        float64
@@ -37,26 +37,27 @@ type LinearSVCParams struct {
 // Penalty and Loss parameters can either be l1 or l2.
 func (p *LinearSVCParams) SetKindFromStrings(loss, penalty string) error {
 	var ret error
-	p.solverType = 0
+	p.SolverType = 0
 	// Loss validation
 	if loss == "l1" {
 	} else if loss == "l2" {
 	} else {
 		return fmt.Errorf("loss must be \"l1\" or \"l2\"")
 	}
+
 	// Penalty validation
 	if penalty == "l2" {
 		if loss == "l1" {
 			if !p.Dual {
 				ret = fmt.Errorf("Important: changed to dual form")
 			}
-			p.solverType = L2R_L1LOSS_SVC_DUAL
+			p.SolverType = L2R_L1LOSS_SVC_DUAL
 			p.Dual = true
 		} else {
 			if p.Dual {
-				p.solverType = L2R_L2LOSS_SVC_DUAL
+				p.SolverType = L2R_L2LOSS_SVC_DUAL
 			} else {
-				p.solverType = L2R_L2LOSS_SVC
+				p.SolverType = L2R_L2LOSS_SVC
 			}
 		}
 	} else if penalty == "l1" {
@@ -65,15 +66,16 @@ func (p *LinearSVCParams) SetKindFromStrings(loss, penalty string) error {
 				ret = fmt.Errorf("Important: changed to primary form")
 			}
 			p.Dual = false
-			p.solverType = L1R_L2LOSS_SVC
+			p.SolverType = L1R_L2LOSS_SVC
 		} else {
 			return fmt.Errorf("Must have L2 loss with L1 penalty")
 		}
 	} else {
 		return fmt.Errorf("Penalty must be \"l1\" or \"l2\"")
 	}
-	// Finaly validation
-	if p.solverType == 0 {
+
+	// Final validation
+	if p.SolverType == 0 {
 		return fmt.Errorf("Invalid parameter combination")
 	}
 	return ret
@@ -82,7 +84,7 @@ func (p *LinearSVCParams) SetKindFromStrings(loss, penalty string) error {
 // convertToNativeFormat converts the LinearSVCParams given into a format
 // for liblinear.
 func (p *LinearSVCParams) convertToNativeFormat() *Parameter {
-	return NewParameter(p.solverType, p.C, p.Eps)
+	return NewParameter(p.SolverType, p.C, p.Eps)
 }
 
 // LinearSVC represents a linear support-vector classifier.

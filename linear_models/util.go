@@ -6,7 +6,7 @@ import (
 )
 
 func generateClassWeightVectorFromDist(X base.FixedDataGrid) []float64 {
-	classDist := base.GetClassDistributionByCategoricalValue(X)
+	classDist := base.GetClassDistributionByBinaryFloatValue(X)
 	ret := make([]float64, len(classDist))
 	for i, c := range classDist {
 		if c == 0 {
@@ -23,15 +23,14 @@ func generateClassWeightVectorFromFixed(X base.FixedDataGrid) []float64 {
 	if len(classAttrs) != 1 {
 		panic("Wrong number of class Attributes")
 	}
-	if cat, ok := classAttrs[0].(*base.CategoricalAttribute); ok {
-		length := len(cat.GetValues())
-		ret := make([]float64, length)
+	if _, ok := classAttrs[0].(*base.FloatAttribute); ok {
+		ret := make([]float64, 2)
 		for i := range ret {
 			ret[i] = 1.0
 		}
 		return ret
 	} else {
-		panic("Must be a CategoricalAttribute")
+		panic("Must be a FloatAttribute")
 	}
 }
 

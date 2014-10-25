@@ -19,13 +19,23 @@ type MultiLinearSVC struct {
 // in most cases. C is the penalty term, normally 1.0. eps is the convergence
 // term, typically 1e-4.
 func NewMultiLinearSVC(loss, penalty string, dual bool, C float64, eps float64) *MultiLinearSVC {
+	// Set up the training parameters
+	params := &linear_models.LinearSVCParams{0, nil, C, eps, false, dual}
+	err := params.SetKindFromStrings(loss, penalty)
+	if err != nil {
+		panic(err)
+	}
+
+	// Classifier creation function
 	classifierFunc := func() base.Classifier {
-		ret, err := linear_models.NewLinearSVC(loss, penalty, dual, C, eps)
+		ret, err := linear_models.NewLinearSVCFromParams(params)
 		if err != nil {
 			panic(err)
 		}
 		return ret
 	}
+
+	// Return me...
 	return &MultiLinearSVC{
 		meta.NewOneVsAllModel(classifierFunc),
 	}
