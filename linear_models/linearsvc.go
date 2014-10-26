@@ -33,6 +33,23 @@ type LinearSVCParams struct {
 	Dual                       bool
 }
 
+// Copy return s a copy of these parameters
+func (p *LinearSVCParams) Copy() *LinearSVCParams {
+	ret := &LinearSVCParams{
+		p.SolverType,
+		nil,
+		p.C,
+		p.Eps,
+		p.WeightClassesAutomatically,
+		p.Dual,
+	}
+	if p.ClassWeights != nil {
+		ret.ClassWeights = make([]float64, len(p.ClassWeights))
+		copy(ret.ClassWeights, p.ClassWeights)
+	}
+	return ret
+}
+
 // SetKindFromStrings configures the solver kind from strings.
 // Penalty and Loss parameters can either be l1 or l2.
 func (p *LinearSVCParams) SetKindFromStrings(loss, penalty string) error {
