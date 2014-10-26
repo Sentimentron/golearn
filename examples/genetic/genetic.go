@@ -44,9 +44,10 @@ func main() {
 	}
 
 	initialGenome := new(optimisation.BasicGenome)
-	initialGenome.Vals = []float64{1.0, 1.0, 1.0, 1.0}
+	//	initialGenome.Vals = []float64{1.0, 1.0, 1.0, 1.0}
+	initialGenome.Vals = []float64{0.94, 0.98, 0.81, 0.81}
 
-	optimizedGenome := optimisation.BasicGenomeOptimize(initialGenome, 15, 500, fitness, 0.1)
+	optimizedGenome := optimisation.BasicGenomeOptimize(initialGenome, 15, 200, fitness, 0.105)
 	finalFitness := fitness(optimizedGenome)
 	fmt.Println(finalFitness)
 	fmt.Println(optimizedGenome.(*optimisation.BasicGenome).Vals)

@@ -65,13 +65,14 @@ type survivalRecord struct {
 func BasicGenomeOptimize(template Genome, top, rounds int, fitness func(Genome) float64, alpha float64) Genome {
 
 	// Create the initial pool
-	pool := make([]survivalRecord, top)
+	pool := make([]*survivalRecord, top)
 
 	// Compute initial fitness
 	f := fitness(template)
 
 	// Populate the survival pool
 	for i := range pool {
+		pool[i] = &survivalRecord{nil, 0.0}
 		pool[i].g = template.Copy()
 		pool[i].f = f
 	}
@@ -79,113 +80,55 @@ func BasicGenomeOptimize(template Genome, top, rounds int, fitness func(Genome) 
 	// The first go-routine continually selects and breeds pairs
 	// from the pool.
 	n := runtime.NumCPU()
-	stork := make(chan Genome, n)
-	fittest := make(chan survivalRecord, n*32)
-	done := 0
+	stork := make([]*survivalRecord, n)
 
-	// Evaluation is what normally takes up the time
-	var processWait sync.WaitGroup
-	for i := 0; i < n; i++ {
-		processWait.Add(1)
-		go func() {
-			more := true
-			for {
-				select {
-				case cur := <-stork:
-					if cur == nil {
-						more = false
-						break
-					}
-					f := fitness(cur)
-					fittest <- survivalRecord{cur, f}
-				default:
-					more = false
-					break
-				}
-				if done == rounds {
-					processWait.Done()
-					break
-				}
-				if !more {
-					break
-				}
-			}
-		}()
-	}
-
-	func() {
-		for r := 0; r < rounds; r++ {
-			done++
-			// Process any new fitness records
-			for {
-				more := true
-				select {
-				case i := <-fittest:
-					minFitness := math.Inf(1)
-					minIndex := 0
-					for i := range pool {
-						if pool[i].f < minFitness {
-							minIndex = i
-							minFitness = pool[i].f
-						}
-					}
-					f := i.f
-					if f > minFitness {
-						pool[minIndex] = i
-					}
-				default:
-					more = false
-				}
-				if !more {
-					break
-				}
-			}
-
-			// Select two random genomes
-			i := 0
+	for i := 0; i < rounds; i += n {
+		var processWait sync.WaitGroup
+		// Breed each thing
+		for l := range stork {
+			// Choose two parent genomes
 			j := 0
+			k := 0
 			for {
-				if i != j {
+				if j == k {
 					break
 				}
-				i = rand.Intn(top)
 				j = rand.Intn(top)
+				k = rand.Intn(top)
 			}
-			fmt.Println("Breeding")
-			g := pool[i].g.Breed(pool[j].g)
-			g.Randomize(alpha)
-			stork <- g
+			stork[l] = &survivalRecord{nil, 0.0}
+			// Breed
+			stork[l].g = pool[j].g.Breed(pool[k].g)
+			stork[l].g.Randomize(alpha)
 		}
-		close(stork)
-	}()
+		// Evaluate fitness
+		for j := 0; j < n; j++ {
+			processWait.Add(1)
+			go func(k int, cur *survivalRecord) {
+				fmt.Println(k, cur)
+				f := fitness(cur.g)
+				stork[k].f = f
+				processWait.Done()
+			}(j, stork[j])
+		}
+		processWait.Wait()
 
-	processWait.Wait()
-
-	fmt.Println(pool)
-	// Process any new fitness records
-	for {
-		more := true
-		select {
-		case i := <-fittest:
+		// Update the pool
+		for _, g := range stork {
 			minFitness := math.Inf(1)
 			minIndex := 0
-			for i := range pool {
-				if pool[i].f < minFitness {
-					minIndex = i
-					minFitness = pool[i].f
+			for j, p := range pool {
+				if p.f < minFitness {
+					minFitness = p.f
+					minIndex = j
 				}
 			}
-			f := i.f
-			if f > minFitness {
-				pool[minIndex] = i
+			if minFitness < g.f {
+				pool[minIndex] = g
 			}
-		default:
-			more = false
-		}
-		if !more {
-			break
 		}
 	}
+
 	maxFitness := math.Inf(-1)
 	maxIndex := 0
 	for i := range pool {
