@@ -70,3 +70,8 @@ func (m *MultiLinearSVC) Fit(instances base.FixedDataGrid) error {
 func (m *MultiLinearSVC) Predict(from base.FixedDataGrid) (base.FixedDataGrid, error) {
 	return m.m.Predict(from)
 }
+
+// String gets a human-readable summary.
+func (m *MultiLinearSVC) String() string {
+	return "MultiLinearSVC"
+}
