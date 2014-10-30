@@ -29,15 +29,15 @@ func TestMultiSVMUnweighted(t *testing.T) {
 func TestMultiSVMWeighted(t *testing.T) {
 	Convey("Loading data...", t, func() {
 		weights := make(map[string]float64)
-		weights["Finance"] = 0.7
-		weights["Tech"] = 0.1
-		weights["Politics"] = 0.5
+		weights["Finance"] = 0.1739
+		weights["Tech"] = 0.0750
+		weights["Politics"] = 0.4928
 
 		inst, err := base.ParseCSVToInstances("../examples/datasets/articles.csv", false)
 		So(err, ShouldBeNil)
 		X, Y := base.InstancesTrainTestSplit(inst, 0.4)
 
-		m := NewMultiLinearSVC("l1", "l2", true, 1.0, 1e-4, weights)
+		m := NewMultiLinearSVC("l1", "l2", true, 0.62, 1e-4, weights)
 		m.Fit(X)
 
 		Convey("Predictions should work...", func() {

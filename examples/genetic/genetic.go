@@ -19,8 +19,8 @@ func main() {
 		b := g.(*optimisation.BasicGenome)
 		weights := make(map[string]float64)
 		for i := range b.Vals {
-			if b.Vals[i] < 0.1 {
-				b.Vals[i] = 0.1
+			if b.Vals[i] < 0.0001 {
+				b.Vals[i] = 0.0001
 			}
 		}
 		weights["Finance"] = b.Vals[0]
@@ -38,11 +38,12 @@ func main() {
 	}
 
 	initialGenome := new(optimisation.BasicGenome)
-	//initialGenome.Vals = []float64{1.0, 1.0, 1.0, 1.0}
-	initialGenome.Vals = []float64{0.0, 0.0, 0.0, 0.1}
+	initialGenome.Vals = []float64{1.0, 1.0, 1.0, 10.0}
+	//initialGenome.Vals = []float64{0.0, 0.0, 0.0, 0.1}
 	//nitialGenome.Vals = []float64{0.94, 0.98, 0.81, 0.81}
+	//initialGenome.Vals = []float64{0.1739073877945699, 0.07499968248167457, 0.49283589143445955, 0.6209129167487109}
 
-	optimizedGenome := optimisation.BasicGenomeOptimize(initialGenome, 15, 20, fitness, 0.105)
+	optimizedGenome := optimisation.BasicGenomeOptimize(initialGenome, 15, 60, fitness, 0.075)
 	finalFitness := fitness(optimizedGenome)
 	fmt.Println(finalFitness)
 	fmt.Println(optimizedGenome.(*optimisation.BasicGenome).Vals)
