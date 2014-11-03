@@ -63,6 +63,9 @@ func (a *IDAttribute) Compatible(other Attribute) bool {
 	if _, ok := other.(*IDAttribute); ok {
 		return true
 	}
+	if _, ok := other.(*StringAttribute); ok {
+		return true
+	}
 	if _, ok := other.(*CategoricalAttribute); ok {
 		return true
 	}
