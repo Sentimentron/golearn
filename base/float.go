@@ -8,8 +8,8 @@ import (
 // FloatAttribute is an implementation which stores floating point
 // representations of numbers.
 type FloatAttribute struct {
-	Name      string
-	Precision int
+	Name      string `json:"name"`
+	Precision int    `json:"precision"`
 }
 
 // NewFloatAttribute returns a new FloatAttribute with a default

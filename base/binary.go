@@ -7,7 +7,7 @@ import (
 
 // BinaryAttributes can only represent 1 or 0.
 type BinaryAttribute struct {
-	Name string
+	Name string `json:"name"`
 }
 
 // NewBinaryAttribute creates a BinaryAttribute with the given name
