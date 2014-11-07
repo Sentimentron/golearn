@@ -9,8 +9,8 @@ import (
 // FloatAttribute is an implementation which stores floating point
 // representations of numbers.
 type FloatAttribute struct {
-	Name      string `json:"name"`
-	Precision int    `json:"precision"`
+	Name      string
+	Precision int
 }
 
 // MarshalJSON returns a JSON representation of this Attribute

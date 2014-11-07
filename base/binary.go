@@ -11,6 +11,7 @@ type BinaryAttribute struct {
 	Name string
 }
 
+// MarshalJSON returns a JSON version of this BinaryAttribute for serialisation.
 func (b *BinaryAttribute) MarshalJSON() ([]byte, error) {
 	return json.Marshal(map[string]interface{}{
 		"type": "binary",
@@ -18,6 +19,7 @@ func (b *BinaryAttribute) MarshalJSON() ([]byte, error) {
 	})
 }
 
+// UnmarshalJSON unpacks a BinaryAttribute from serialisation.
 func (b *BinaryAttribute) UnmarshalJSON(data []byte) error {
 	var d map[string]interface{}
 	err := json.Unmarshal(data, &d)

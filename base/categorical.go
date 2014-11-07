@@ -13,6 +13,7 @@ type CategoricalAttribute struct {
 	values []string `json:"values"`
 }
 
+// MarshalJSON returns a JSON version of this Attribute.
 func (Attr *CategoricalAttribute) MarshalJSON() ([]byte, error) {
 	return json.Marshal(map[string]interface{}{
 		"type":   "categorical",
@@ -21,6 +22,7 @@ func (Attr *CategoricalAttribute) MarshalJSON() ([]byte, error) {
 	})
 }
 
+// UnmarshalJSON returns a JSON version of this Attribute.
 func (Attr *CategoricalAttribute) UnmarshalJSON(data []byte) error {
 	var d map[string]interface{}
 	err := json.Unmarshal(data, &d)
