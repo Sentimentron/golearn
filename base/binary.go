@@ -1,13 +1,36 @@
 package base
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 )
 
 // BinaryAttributes can only represent 1 or 0.
 type BinaryAttribute struct {
-	Name string `json:"name"`
+	Name string
+}
+
+func (b *BinaryAttribute) MarshalJSON() ([]byte, error) {
+	return json.Marshal(map[string]interface{}{
+		"type": "binary",
+		"name": b.Name,
+	})
+}
+
+func (b *BinaryAttribute) UnmarshalJSON(data []byte) error {
+	var d map[string]interface{}
+	err := json.Unmarshal(data, &d)
+	if err != nil {
+		return err
+	}
+
+	if d["type"] != "binary" {
+		return fmt.Errorf("Not a BinaryAttribute!")
+	}
+
+	b.SetName(d["name"].(string))
+	return nil
 }
 
 // NewBinaryAttribute creates a BinaryAttribute with the given name

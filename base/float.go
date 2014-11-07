@@ -1,6 +1,7 @@
 package base
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 )
@@ -10,6 +11,33 @@ import (
 type FloatAttribute struct {
 	Name      string `json:"name"`
 	Precision int    `json:"precision"`
+}
+
+// MarshalJSON returns a JSON representation of this Attribute
+// for serialisation.
+func (f *FloatAttribute) MarshalJSON() ([]byte, error) {
+	return json.Marshal(map[string]interface{}{
+		"type":      "float",
+		"name":      f.Name,
+		"precision": f.Precision,
+	})
+}
+
+// UnmarshalJSON reads a JSON representation of this Attribute.
+func (f *FloatAttribute) UnmarshalJSON(data []byte) error {
+	var d map[string]interface{}
+	err := json.Unmarshal(data, &d)
+	if err != nil {
+		return err
+	}
+
+	if d["type"] != "float" {
+		return fmt.Errorf("Not a FloatAttribute!")
+	}
+
+	f.SetName(d["name"].(string))
+	f.Precision = d["precision"].(int)
+	return nil
 }
 
 // NewFloatAttribute returns a new FloatAttribute with a default
