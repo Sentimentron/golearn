@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"reflect"
+	"runtime"
 )
 
 const (
@@ -122,7 +123,18 @@ func deserializeAttributes(data []byte) []Attribute {
 	return ret
 }
 
-func DeserializeInstances(f io.Reader) (FixedDataGrid, error) {
+func DeserializeInstances(f io.Reader) (ret *DenseInstances, err error) {
+
+	// Recovery function
+	defer func() {
+		if r := recover(); r != nil {
+			if _, ok := r.(runtime.Error); ok {
+				panic(r)
+			}
+			err = r.(error)
+		}
+	}()
+
 	// Open the .gz layer
 	gzReader, err := gzip.NewReader(f)
 	if err != nil {
@@ -148,7 +160,7 @@ func DeserializeInstances(f io.Reader) (FixedDataGrid, error) {
 	normalAttrs := deserializeAttributes(attrBytes)
 
 	// Create the return instances
-	ret := NewDenseInstances()
+	ret = NewDenseInstances()
 
 	// Normal Attributes first, class Attributes on the end
 	allAttributes := make([]Attribute, attrCount)
