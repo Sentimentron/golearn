@@ -3,6 +3,7 @@ package base
 import (
 	"archive/tar"
 	"compress/gzip"
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -29,6 +30,53 @@ func SerializeInstancesToFile(inst FixedDataGrid, path string) error {
 		return fmt.Errorf("Couldn't flush file: %s", err)
 	}
 	f.Close()
+	return nil
+}
+
+func SerializeInstancesToCSV(inst FixedDataGrid, path string) error {
+	f, err := os.OpenFile(path, os.O_RDWR, 0600)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		f.Sync()
+		f.Close()
+	}()
+
+	return SerializeInstancesToCSVStream(inst, f)
+}
+
+func SerializeInstancesToCSVStream(inst FixedDataGrid, f io.Writer) error {
+	// Create the CSV writer
+	w := csv.NewWriter(f)
+
+	colCount, _ := inst.Size()
+
+	// Write out Attribute headers
+	// Start with the regular Attributes
+	normalAttrs := NonClassAttributes(inst)
+	classAttrs := inst.AllClassAttributes()
+	allAttrs := make([]Attribute, colCount)
+	n := copy(allAttrs, normalAttrs)
+	copy(allAttrs[n:], classAttrs)
+	headerRow := make([]string, colCount)
+	for i, v := range allAttrs {
+		headerRow[i] = v.GetName()
+	}
+	w.Write(headerRow)
+
+	specs := ResolveAttributes(inst, allAttrs)
+	curRow := make([]string, colCount)
+	inst.MapOverRows(specs, func(row [][]byte, rowNo int) (bool, error) {
+		for i, v := range row {
+			attr := allAttrs[i]
+			curRow[i] = attr.GetStringFromSysVal(v)
+		}
+		w.Write(curRow)
+		return true, nil
+	})
+
+	w.Flush()
 	return nil
 }
 

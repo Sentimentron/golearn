@@ -10,7 +10,26 @@ import (
 	"testing"
 )
 
-func TestSerialize(t *testing.T) {
+func TestSerializeToCSV(t *testing.T) {
+	Convey("Reading some instances...", t, func() {
+		inst, err := ParseCSVToInstances("../examples/datasets/iris_headers.csv", true)
+		So(err, ShouldBeNil)
+
+		Convey("Saving the instances to CSV...", func() {
+			f, err := ioutil.TempFile("", "instTmp")
+			So(err, ShouldBeNil)
+			err = SerializeInstancesToCSV(inst, f.Name())
+			So(err, ShouldBeNil)
+			Convey("What's written out should match what's read in", func() {
+				dinst, err := ParseCSVToInstances(f.Name(), true)
+				So(err, ShouldBeNil)
+				So(inst.String(), ShouldEqual, dinst.String())
+			})
+		})
+	})
+}
+
+func TestSerializeToFile(t *testing.T) {
 	Convey("Reading some instances...", t, func() {
 		inst, err := ParseCSVToInstances("../examples/datasets/iris_headers.csv", true)
 		So(err, ShouldBeNil)
@@ -85,5 +104,4 @@ func TestSerialize(t *testing.T) {
 			})
 		})
 	})
-
 }
