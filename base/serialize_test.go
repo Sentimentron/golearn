@@ -21,7 +21,6 @@ func TestSerialize(t *testing.T) {
 			err = SerializeInstances(inst, f)
 			So(err, ShouldBeNil)
 			f.Seek(0, 0)
-
 			Convey("Contents of the archive should be right...", func() {
 				gzr, err := gzip.NewReader(f)
 				So(err, ShouldBeNil)
@@ -30,6 +29,7 @@ func TestSerialize(t *testing.T) {
 				manifestPresent := false
 				regularAttrsPresent := false
 				dataPresent := false
+				dimsPresent := false
 				readBytes := make([]byte, len([]byte(SerializationFormatVersion)))
 				for {
 					hdr, err := tr.Next()
@@ -51,6 +51,9 @@ func TestSerialize(t *testing.T) {
 					case "DATA":
 						dataPresent = true
 						break
+					case "DIMS":
+						dimsPresent = true
+						break
 					default:
 						fmt.Printf("Unknown file: %s\n", hdr.Name)
 					}
@@ -70,10 +73,15 @@ func TestSerialize(t *testing.T) {
 				Convey("CATTRS should be present", func() {
 					So(classAttrsPresent, ShouldBeTrue)
 				})
+				Convey("DIMS should be present", func() {
+					So(dimsPresent, ShouldBeTrue)
+				})
 			})
-
+			Convey("Should be able to reconstruct...", func() {
+				f.Seek(0, 0)
+				DeserializeInstances(f)
+			})
 		})
-
 	})
 
 }
