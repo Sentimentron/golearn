@@ -17,9 +17,11 @@ type FloatAttribute struct {
 // for serialisation.
 func (f *FloatAttribute) MarshalJSON() ([]byte, error) {
 	return json.Marshal(map[string]interface{}{
-		"type":      "float",
-		"name":      f.Name,
-		"precision": f.Precision,
+		"type": "float",
+		"name": f.Name,
+		"attr": map[string]interface{}{
+			"precision": f.Precision,
+		},
 	})
 }
 
@@ -30,14 +32,11 @@ func (f *FloatAttribute) UnmarshalJSON(data []byte) error {
 	if err != nil {
 		return err
 	}
-
-	if d["type"] != "float" {
-		return fmt.Errorf("Not a FloatAttribute!")
+	if precision, ok := d["precision"]; ok {
+		f.Precision = int(precision.(float64))
+		return nil
 	}
-
-	f.SetName(d["name"].(string))
-	f.Precision = d["precision"].(int)
-	return nil
+	return fmt.Errorf("Precision must be specified")
 }
 
 // NewFloatAttribute returns a new FloatAttribute with a default

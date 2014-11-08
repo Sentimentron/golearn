@@ -20,18 +20,8 @@ func (b *BinaryAttribute) MarshalJSON() ([]byte, error) {
 }
 
 // UnmarshalJSON unpacks a BinaryAttribute from serialisation.
+// Usually, there's nothing to deserialize.
 func (b *BinaryAttribute) UnmarshalJSON(data []byte) error {
-	var d map[string]interface{}
-	err := json.Unmarshal(data, &d)
-	if err != nil {
-		return err
-	}
-
-	if d["type"] != "binary" {
-		return fmt.Errorf("Not a BinaryAttribute!")
-	}
-
-	b.SetName(d["name"].(string))
 	return nil
 }
 

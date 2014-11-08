@@ -16,9 +16,11 @@ type CategoricalAttribute struct {
 // MarshalJSON returns a JSON version of this Attribute.
 func (Attr *CategoricalAttribute) MarshalJSON() ([]byte, error) {
 	return json.Marshal(map[string]interface{}{
-		"type":   "categorical",
-		"name":   Attr.Name,
-		"values": Attr.values,
+		"type": "categorical",
+		"name": Attr.Name,
+		"attr": map[string]interface{}{
+			"values": Attr.values,
+		},
 	})
 }
 
@@ -29,10 +31,6 @@ func (Attr *CategoricalAttribute) UnmarshalJSON(data []byte) error {
 	if err != nil {
 		return err
 	}
-	if d["type"] != "categorical" {
-		return fmt.Errorf("Not a CategoricalAttribute")
-	}
-	Attr.SetName(d["name"].(string))
 	for _, v := range d["values"].([]interface{}) {
 		Attr.values = append(Attr.values, v.(string))
 	}

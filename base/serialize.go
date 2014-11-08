@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
-	//"reflect"
+	"reflect"
 )
 
 const (
@@ -79,59 +79,136 @@ func getTarContent(tr *tar.Reader, name string) []byte {
 	panic("File not found!")
 }
 
-func DeserializeInstances(f io.Reader) (FixedDataGrid, error) {
+func deserializeAttributes(data []byte) []Attribute {
+
 	// Define a JSON shim Attribute
 	type JSONAttribute struct {
-		Type string `json:type`
-		Attr json.RawMessage
+		Type string          `json:type`
+		Name string          `json:name`
+		Attr json.RawMessage `json:attr`
 	}
 
-	/*var attrs []JSONAttribute
-	var specs []JSONAttribute
+	var ret []Attribute
+	var attrs []JSONAttribute
 
-		// Open the .gz layer
-		gzReader, err := gzip.NewReader(f)
-		if err != nil {
-			return nil, fmt.Errorf("Can't open: %s", err)
-		}
-		// Open the .tar layer
-		tr := tar.NewReader(gzReader)
-		// Retrieve the MANIFEST and verify
-		manifestBytes := getTarContent(tr, "MANIFEST")
-		if !reflect.DeepEqual(manifestBytes, []byte(SerializationFormatVersion)) {
-			return nil, fmt.Errorf("Unsupported MANIFEST: %s", string(manifestBytes))
-		}
-		// Unmarshal the Attributes
-		attrBytes := getTarContent(tr, "ATTRS")
-		fmt.Println(string(attrBytes))
-		err = json.Unmarshal(attrBytes, &attrs)
-		if err != nil {
-			return nil, fmt.Errorf("Attribute decode error: %s", err)
-		}
+	err := json.Unmarshal(data, &attrs)
+	if err != nil {
+		panic(fmt.Errorf("Attribute decode error: %s", err))
+	}
 
-		for _, a := range attrs {
-			var attr Attribute
-			var err error
-			switch a.Type {
-			case "binary":
-				attr = new(BinaryAttribute)
-				break
-			case "float":
-				attr = new(FloatAttribute)
-				break
-			case "categorical":
-				attr = new(CategoricalAttribute)
-				break
-			default:
-				return nil, fmt.Errorf("Unrecognised Attribute format: %s", a.Type)
+	fmt.Println(attrs)
+	for _, a := range attrs {
+		var attr Attribute
+		var err error
+		switch a.Type {
+		case "binary":
+			attr = new(BinaryAttribute)
+			break
+		case "float":
+			attr = new(FloatAttribute)
+			break
+		case "categorical":
+			attr = new(CategoricalAttribute)
+			break
+		default:
+			panic(fmt.Errorf("Unrecognised Attribute format: %s", a.Type))
+		}
+		fmt.Println(a.Attr)
+		err = attr.UnmarshalJSON(a.Attr)
+		if err != nil {
+			panic(fmt.Errorf("Can't deserialize: %s (error: %s)", a, err))
+		}
+		attr.SetName(a.Name)
+		ret = append(ret, attr)
+	}
+	return ret
+}
+
+func DeserializeInstances(f io.Reader) (FixedDataGrid, error) {
+	// Open the .gz layer
+	gzReader, err := gzip.NewReader(f)
+	if err != nil {
+		return nil, fmt.Errorf("Can't open: %s", err)
+	}
+	// Open the .tar layer
+	tr := tar.NewReader(gzReader)
+	// Retrieve the MANIFEST and verify
+	manifestBytes := getTarContent(tr, "MANIFEST")
+	if !reflect.DeepEqual(manifestBytes, []byte(SerializationFormatVersion)) {
+		return nil, fmt.Errorf("Unsupported MANIFEST: %s", string(manifestBytes))
+	}
+
+	// Get the size
+	sizeBytes := getTarContent(tr, "DIMS")
+	attrCount := int(UnpackBytesToU64(sizeBytes[0:8]))
+	rowCount := int(UnpackBytesToU64(sizeBytes[8:]))
+	fmt.Println(attrCount, rowCount)
+
+	// Unmarshal the Attributes
+	attrBytes := getTarContent(tr, "CATTRS")
+	cAttrs := deserializeAttributes(attrBytes)
+	attrBytes = getTarContent(tr, "ATTRS")
+	normalAttrs := deserializeAttributes(attrBytes)
+
+	// Create the return instances
+	ret := NewDenseInstances()
+
+	// Normal Attributes first, class Attributes on the end
+	allAttributes := make([]Attribute, attrCount)
+	for i, v := range normalAttrs {
+		ret.AddAttribute(v)
+		allAttributes[i] = v
+	}
+	for i, v := range cAttrs {
+		ret.AddAttribute(v)
+		err = ret.AddClassAttribute(v)
+		if err != nil {
+			return nil, fmt.Errorf("Could not set Attribute as class Attribute: %s", err)
+		}
+		allAttributes[i+len(normalAttrs)] = v
+	}
+	// Allocate memory
+	err = ret.Extend(int(rowCount))
+	if err != nil {
+		return nil, fmt.Errorf("Could not allocate memory")
+	}
+
+	// Seek through the TAR file until we get to the DATA section
+	for {
+		hdr, err := tr.Next()
+		if err == io.EOF {
+			return nil, fmt.Errorf("DATA section missing!")
+		} else if err != nil {
+			return nil, fmt.Errorf("Error seeking to DATA section: %s", err)
+		}
+		if hdr.Name == "DATA" {
+			break
+		}
+	}
+
+	// Resolve AttributeSpecs
+	specs := ResolveAttributes(ret, allAttributes)
+
+	// Finally, read the values out of the data section
+	for i := 0; i < rowCount; i++ {
+		for _, s := range specs {
+			r := ret.Get(s, i)
+			n, err := tr.Read(r)
+			if n != len(r) {
+				return nil, fmt.Errorf("Expected %d bytes (read %d) on row %d", len(r), n, i)
 			}
-			err = attr.UnmarshalJSON(a.Attr)
 			if err != nil {
-				return nil, fmt.Errorf("Can't deserialize: %s (error: %s)", a, err)
+				return nil, fmt.Errorf("Read error: %s", err)
 			}
+			ret.Set(s, i, r)
 		}
-	*/
-	return nil, nil
+	}
+
+	if err = gzReader.Close(); err != nil {
+		return ret, fmt.Errorf("Error closing gzip stream: %s", err)
+	}
+
+	return ret, nil
 }
 
 func SerializeInstances(inst FixedDataGrid, f io.Writer) error {
