@@ -96,7 +96,6 @@ func deserializeAttributes(data []byte) []Attribute {
 		panic(fmt.Errorf("Attribute decode error: %s", err))
 	}
 
-	fmt.Println(attrs)
 	for _, a := range attrs {
 		var attr Attribute
 		var err error
@@ -113,7 +112,6 @@ func deserializeAttributes(data []byte) []Attribute {
 		default:
 			panic(fmt.Errorf("Unrecognised Attribute format: %s", a.Type))
 		}
-		fmt.Println(a.Attr)
 		err = attr.UnmarshalJSON(a.Attr)
 		if err != nil {
 			panic(fmt.Errorf("Can't deserialize: %s (error: %s)", a, err))
@@ -142,7 +140,6 @@ func DeserializeInstances(f io.Reader) (FixedDataGrid, error) {
 	sizeBytes := getTarContent(tr, "DIMS")
 	attrCount := int(UnpackBytesToU64(sizeBytes[0:8]))
 	rowCount := int(UnpackBytesToU64(sizeBytes[8:]))
-	fmt.Println(attrCount, rowCount)
 
 	// Unmarshal the Attributes
 	attrBytes := getTarContent(tr, "CATTRS")

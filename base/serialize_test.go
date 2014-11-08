@@ -79,9 +79,9 @@ func TestSerialize(t *testing.T) {
 			})
 			Convey("Should be able to reconstruct...", func() {
 				f.Seek(0, 0)
-				inst, err := DeserializeInstances(f)
+				dinst, err := DeserializeInstances(f)
 				So(err, ShouldBeNil)
-
+				So(InstancesAreEqual(inst, dinst), ShouldBeTrue)
 			})
 		})
 	})
