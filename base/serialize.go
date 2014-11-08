@@ -312,6 +312,7 @@ func SerializeInstances(inst FixedDataGrid, f io.Writer) error {
 		return fmt.Errorf("Could not write DATA: changed size from %v to %v", dataLength, writtenLength)
 	}
 
+	// Finally, close and flush the various levels
 	if err := tw.Flush(); err != nil {
 		return fmt.Errorf("Could not flush tar: %s", err)
 	}
