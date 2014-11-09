@@ -1,6 +1,7 @@
 package base
 
 import (
+	"bufio"
 	"encoding/csv"
 	"fmt"
 	"io"
@@ -30,6 +31,52 @@ func ParseCSVGetRows(filepath string) (int, error) {
 		counter++
 	}
 	return counter, nil
+}
+
+// ParseCSVEstimateFilePrecision determines what the maximum number of
+// digits occuring anywhere after the decimal point within the file.
+func ParseCSVEstimateFilePrecision(filepath string) (int, error) {
+	// Creat a basic regexp
+	rexp := regexp.MustCompile("[0-9]+(.[0-9]+)?")
+
+	// Open the source file
+	f, err := os.Open(filepath)
+	if err != nil {
+		return 0, err
+	}
+	defer f.Close()
+
+	// Scan through the file line-by-line
+	maxL := 0
+	scanner := bufio.NewScanner(f)
+	lineCount := 0
+	for scanner.Scan() {
+		if lineCount > 5 {
+			break
+		}
+		line := scanner.Text()
+		if len(line) == 0 {
+			continue
+		}
+		if line[0] == '@' {
+			continue
+		}
+		if line[0] == '%' {
+			continue
+		}
+		matches := rexp.FindAllString(line, -1)
+		for _, m := range matches {
+			p := strings.Split(m, ".")
+			if len(p) == 2 {
+				l := len(p[len(p)-1])
+				if l > maxL {
+					maxL = l
+				}
+			}
+		}
+		lineCount++
+	}
+	return maxL, nil
 }
 
 // ParseCSVGetAttributes returns an ordered slice of appropriate-ly typed
@@ -110,6 +157,17 @@ func ParseCSVSniffAttributeTypes(filepath string, hasHeaders bool) []Attribute {
 			attrs = append(attrs, NewFloatAttribute(""))
 		} else {
 			attrs = append(attrs, new(CategoricalAttribute))
+		}
+	}
+
+	// Estimate file precision
+	maxP, err := ParseCSVEstimateFilePrecision(filepath)
+	if err != nil {
+		panic(err)
+	}
+	for _, a := range attrs {
+		if f, ok := a.(*FloatAttribute); ok {
+			f.Precision = maxP
 		}
 	}
 

@@ -2,18 +2,21 @@ package base
 
 import (
 	"bufio"
+	"bytes"
+	"encoding/csv"
 	"fmt"
+	"io"
 	"os"
 	"runtime"
 	"strings"
 )
 
-// GetARFFDataRowCount returns the number of data rows in an ARFF file.
-func GetARFFDataRowCount(filepath string) int {
+// ParseARFFGetRows returns the number of data rows in an ARFF file.
+func ParseARFFGetRows(filepath string) (int, error) {
 
 	f, err := os.Open(filepath)
 	if err != nil {
-		panic(err)
+		return 0, err
 	}
 	defer f.Close()
 
@@ -22,7 +25,16 @@ func GetARFFDataRowCount(filepath string) int {
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		line := scanner.Text()
+		if len(line) == 0 {
+			continue
+		}
 		if counting {
+			if line[0] == '@' {
+				continue
+			}
+			if line[0] == '%' {
+				continue
+			}
 			count++
 			continue
 		}
@@ -33,11 +45,11 @@ func GetARFFDataRowCount(filepath string) int {
 			}
 		}
 	}
-	return count
+	return count, nil
 }
 
-// GetARFFAttributes returns the set of Attributes represented in this ARFF
-func GetARFFAttributes(filepath string) []Attribute {
+// ParseARFFGetAttributes returns the set of Attributes represented in this ARFF
+func ParseARFFGetAttributes(filepath string) []Attribute {
 	var ret []Attribute
 
 	f, err := os.Open(filepath)
@@ -50,6 +62,9 @@ func GetARFFAttributes(filepath string) []Attribute {
 	for scanner.Scan() {
 		var attr Attribute
 		line := scanner.Text()
+		if len(line) == 0 {
+			continue
+		}
 		if line[0] != '@' {
 			continue
 		}
@@ -63,7 +78,7 @@ func GetARFFAttributes(filepath string) []Attribute {
 			continue
 		}
 		switch fields[2] {
-		case "numeric":
+		case "real":
 			attr = new(FloatAttribute)
 			break
 		case "binary":
@@ -79,7 +94,7 @@ func GetARFFAttributes(filepath string) []Attribute {
 					for i, v := range cats {
 						cats[i] = strings.TrimSpace(v)
 					}
-					attr := NewCategoricalAttribute()
+					attr = NewCategoricalAttribute()
 					for _, v := range cats {
 						attr.GetSysValFromString(v)
 					}
@@ -90,59 +105,99 @@ func GetARFFAttributes(filepath string) []Attribute {
 				panic(fmt.Errorf("Unsupported Attribute type %s on line '%s'", fields[2], line))
 			}
 		}
+		if attr == nil {
+			panic(fmt.Errorf(line))
+		}
 		attr.SetName(fields[1])
 		ret = append(ret, attr)
+	}
+
+	maxPrecision, err := ParseCSVEstimateFilePrecision(filepath)
+	if err != nil {
+		panic(err)
+	}
+	for _, a := range ret {
+		if f, ok := a.(*FloatAttribute); ok {
+			f.Precision = maxPrecision
+		}
 	}
 
 	return ret
 }
 
-// ParseARFFToTemplatedInstances parses the dense ARFF file into a FixedDataGrid, using only the given parameters.
-func ParseARFFToTemplatedInstances(filepath string, template *DenseInstances) (instances *DenseInstances, err error) {
+func ParseARFFGetHeaderSize(r io.Reader) int64 {
+	var read int64
+	reader := bufio.NewScanner(r)
+	for reader.Scan() {
+		line := reader.Text()
+		read += int64(len(line))
+		if len(line) == 0 {
+			continue
+		}
+		if line[0] == '@' {
+			line = strings.ToLower(line)
+			line = strings.TrimSpace(line)
+			if line == "@data" {
+				break
+			}
+			continue
+		} else if line[0] == '%' {
+			continue
+		}
+	}
+	return read
+}
+
+// ParseDenseARFFBuildInstancesFromReader updates an [[#UpdatableDataGrid]] from a io.Reader
+func ParseDenseARFFBuildInstancesFromReader(r io.Reader, u UpdatableDataGrid) (err error) {
+	var rowCounter int
+
 	defer func() {
 		if r := recover(); r != nil {
 			if _, ok := r.(runtime.Error); ok {
-				panic(r)
+				panic(err)
 			}
-			err = r.(error)
+			err = fmt.Errorf("Error at line %d (error %s)", rowCounter, r.(error))
 		}
 	}()
 
-	f, err := os.Open(filepath)
-	if err != nil {
-		panic(err)
-	}
-	defer f.Close()
-
-	attrs := GetARFFAttributes(filepath)
-
-	dataSection := false
-	scanner := bufio.NewScanner(f)
+	scanner := bufio.NewScanner(r)
+	reading := false
+	specs := ResolveAttributes(u, u.AllAttributes())
 	for scanner.Scan() {
 		line := scanner.Text()
-		line = strings.ToLower(line)
-		line = strings.TrimSpace(line)
-		if line == "@data" {
-			dataSection = true
-			break
+		if strings.HasPrefix(line, "%") {
+			continue
+		}
+		if reading {
+			buf := bytes.NewBuffer([]byte(line))
+			reader := csv.NewReader(buf)
+			for {
+				r, err := reader.Read()
+				if err == io.EOF {
+					break
+				} else if err != nil {
+					return err
+				}
+				for i, v := range r {
+					u.Set(specs[i], rowCounter, specs[i].attr.GetSysValFromString(v))
+				}
+				rowCounter++
+			}
+		} else {
+			line = strings.ToLower(line)
+			line = strings.TrimSpace(line)
+			if line == "@data" {
+				reading = true
+			}
 		}
 	}
 
-	if !dataSection {
-		return nil, fmt.Errorf("No @data section!")
-	}
-
-	instances = CopyDenseInstances(template, attrs)
-	err = ParseCSVBuildInstancesFromReader(f, false, instances)
-	if err != nil {
-		return nil, err
-	}
-
-	return instances, nil
+	return nil
 }
 
-// ParseARFFToInstances parses the dense ARFF File into a FixedDataGrid
-func ParseARFFToInstances(filepath string) (instances *DenseInstances, err error) {
+// ParseDenseARFFToInstances parses the dense ARFF File into a FixedDataGrid
+func ParseDenseARFFToInstances(filepath string) (ret *DenseInstances, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			if _, ok := r.(runtime.Error); ok {
@@ -153,14 +208,16 @@ func ParseARFFToInstances(filepath string) (instances *DenseInstances, err error
 	}()
 
 	// Find the number of rows in the file
-	rows := GetARFFDataRowCount(filepath)
+	rows, err := ParseARFFGetRows(filepath)
+	if err != nil {
+		return nil, err
+	}
 
 	// Get the Attributes we want
-	attrs := GetARFFAttributes(filepath)
+	attrs := ParseARFFGetAttributes(filepath)
 
 	// Allocate return value
-	ret := NewDenseInstances()
-	ret.Extend(rows)
+	ret = NewDenseInstances()
 
 	// Add all the Attributes
 	for _, a := range attrs {
@@ -169,7 +226,21 @@ func ParseARFFToInstances(filepath string) (instances *DenseInstances, err error
 
 	// Set the last Attribute as the class
 	ret.AddClassAttribute(attrs[len(attrs)-1])
+	ret.Extend(rows)
+
+	f, err := os.Open(filepath)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
 
 	// Read the data
-	return ParseARFFToTemplatedInstances(filepath, instances)
+	// Seek past the header
+	headerSize := ParseARFFGetHeaderSize(f)
+	f.Seek(headerSize, 0)
+	err = ParseDenseARFFBuildInstancesFromReader(f, ret)
+	if err != nil {
+		ret = nil
+	}
+	return ret, err
 }

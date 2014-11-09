@@ -64,7 +64,7 @@ func TestLazySortAsc(t *testing.T) {
 				})
 
 				Convey("First element of Result should equal known value", func() {
-					So(result.RowString(0), ShouldEqual, "4.30 3.00 1.10 0.10 Iris-setosa")
+					So(result.RowString(0), ShouldEqual, "4.3 3.0 1.1 0.1 Iris-setosa")
 				})
 			})
 		})
