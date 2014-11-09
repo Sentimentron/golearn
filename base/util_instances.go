@@ -22,6 +22,37 @@ func GeneratePredictionVector(from FixedDataGrid) UpdatableDataGrid {
 	return ret
 }
 
+// CopyDenseInstancesStructure returns a new DenseInstances
+// with identical structure (layout, Attributes) to the original
+func CopyDenseInstances(template *DenseInstances, templateAttrs []Attribute) *DenseInstances {
+	instances := NewDenseInstances()
+	templateAgs := template.AllAttributeGroups()
+	for ag := range templateAgs {
+		agTemplate := templateAgs[ag]
+		if _, ok := agTemplate.(*BinaryAttributeGroup); ok {
+			instances.CreateAttributeGroup(ag, 0)
+		} else {
+			instances.CreateAttributeGroup(ag, 8)
+		}
+	}
+
+	for _, a := range templateAttrs {
+		s, err := template.GetAttribute(a)
+		if err != nil {
+			panic(err)
+		}
+		if ag, ok := template.agRevMap[s.pond]; !ok {
+			panic(ag)
+		} else {
+			_, err := instances.AddAttributeToAttributeGroup(a, ag)
+			if err != nil {
+				panic(err)
+			}
+		}
+	}
+	return instances
+}
+
 // GetClass is a shortcut for returning the string value of the current
 // class on a given row.
 //

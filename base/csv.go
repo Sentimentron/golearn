@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"regexp"
+	"runtime"
 	"strings"
 )
 
@@ -115,31 +116,32 @@ func ParseCSVSniffAttributeTypes(filepath string, hasHeaders bool) []Attribute {
 	return attrs
 }
 
-// ParseCSVBuildInstances updates an [[#UpdatableDataGrid]] from a filepath in place
-func ParseCSVBuildInstances(filepath string, hasHeaders bool, u UpdatableDataGrid) {
+// ParseCSVBuildInstancesFromReader updates an [[#UpdatableDataGrid]] from a io.Reader
+func ParseCSVBuildInstancesFromReader(r io.Reader, hasHeader bool, u UpdatableDataGrid) (err error) {
+	var rowCounter int
 
-	// Read the input
-	file, err := os.Open(filepath)
-	if err != nil {
-		panic(err)
-	}
-	defer file.Close()
-	reader := csv.NewReader(file)
-
-	rowCounter := 0
+	defer func() {
+		if r := recover(); r != nil {
+			if _, ok := r.(runtime.Error); ok {
+				panic(err)
+			}
+			err = fmt.Errorf("Error at line %d (error %s)", rowCounter, r.(error))
+		}
+	}()
 
 	specs := ResolveAttributes(u, u.AllAttributes())
+	reader := csv.NewReader(r)
 
 	for {
 		record, err := reader.Read()
 		if err == io.EOF {
 			break
 		} else if err != nil {
-			panic(err)
+			return err
 		}
 		if rowCounter == 0 {
-			if hasHeaders {
-				hasHeaders = false
+			if hasHeader {
+				hasHeader = false
 				continue
 			}
 		}
@@ -149,6 +151,20 @@ func ParseCSVBuildInstances(filepath string, hasHeaders bool, u UpdatableDataGri
 		rowCounter++
 	}
 
+	return nil
+}
+
+// ParseCSVBuildInstances updates an [[#UpdatableDataGrid]] from a filepath in place
+func ParseCSVBuildInstances(filepath string, hasHeaders bool, u UpdatableDataGrid) error {
+
+	// Read the input
+	file, err := os.Open(filepath)
+	if err != nil {
+		panic(err)
+	}
+	defer file.Close()
+
+	return ParseCSVBuildInstancesFromReader(file, hasHeaders, u)
 }
 
 // ParseCSVToInstances reads the CSV file given by filepath and returns
@@ -176,39 +192,28 @@ func ParseCSVToInstances(filepath string, hasHeaders bool) (instances *DenseInst
 	}
 	instances.Extend(rowCount)
 
-	// Read the input
-	file, err := os.Open(filepath)
+	err = ParseCSVBuildInstances(filepath, hasHeaders, instances)
 	if err != nil {
 		return nil, err
-	}
-	defer file.Close()
-	reader := csv.NewReader(file)
-
-	rowCounter := 0
-
-	for {
-		record, err := reader.Read()
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			return nil, err
-		}
-		if rowCounter == 0 {
-			if hasHeaders {
-				hasHeaders = false
-				continue
-			}
-		}
-		for i, v := range record {
-			v = strings.Trim(v, " ")
-			instances.Set(specs[i], rowCounter, attrs[i].GetSysValFromString(v))
-		}
-		rowCounter++
 	}
 
 	instances.AddClassAttribute(attrs[len(attrs)-1])
 
 	return instances, nil
+}
+
+// ParseUtilsMatchAttrs tries to match the set of Attributes read from one file with
+// those read from another, and writes the matching Attributes back to the original set.
+func ParseMatchAttributes(attrs, templateAttrs []Attribute) {
+	for i, a := range attrs {
+		for _, b := range templateAttrs {
+			if a.Equals(b) {
+				attrs[i] = b
+			} else if a.GetName() == b.GetName() {
+				attrs[i] = b
+			}
+		}
+	}
 }
 
 // ParseCSVToInstancesTemplated reads the CSV file given by filepath and returns
@@ -228,80 +233,15 @@ func ParseCSVToTemplatedInstances(filepath string, hasHeaders bool, template *De
 	// Read the row headers
 	attrs := ParseCSVGetAttributes(filepath, hasHeaders)
 	templateAttrs := template.AllAttributes()
-	for i, a := range attrs {
-		for _, b := range templateAttrs {
-			if a.Equals(b) {
-				attrs[i] = b
-			} else if a.GetName() == b.GetName() {
-				attrs[i] = b
-			}
-		}
-	}
+	ParseMatchAttributes(attrs, templateAttrs)
 
-	specs := make([]AttributeSpec, len(attrs))
 	// Allocate the Instances to return
-	instances = NewDenseInstances()
-
-	templateAgs := template.AllAttributeGroups()
-	for ag := range templateAgs {
-		agTemplate := templateAgs[ag]
-		if _, ok := agTemplate.(*BinaryAttributeGroup); ok {
-			instances.CreateAttributeGroup(ag, 0)
-		} else {
-			instances.CreateAttributeGroup(ag, 8)
-		}
-	}
-
-	for i, a := range templateAttrs {
-		s, err := template.GetAttribute(a)
-		if err != nil {
-			panic(err)
-		}
-		if ag, ok := template.agRevMap[s.pond]; !ok {
-			panic(ag)
-		} else {
-			spec, err := instances.AddAttributeToAttributeGroup(a, ag)
-			if err != nil {
-				panic(err)
-			}
-			specs[i] = spec
-		}
-	}
-
+	instances = CopyDenseInstances(template, templateAttrs)
 	instances.Extend(rowCount)
 
-	// Read the input
-	file, err := os.Open(filepath)
+	err = ParseCSVBuildInstances(filepath, hasHeaders, instances)
 	if err != nil {
 		return nil, err
-	}
-	defer file.Close()
-	reader := csv.NewReader(file)
-
-	rowCounter := 0
-
-	for {
-		record, err := reader.Read()
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			return nil, err
-		}
-		if rowCounter == 0 {
-			if hasHeaders {
-				hasHeaders = false
-				continue
-			}
-		}
-		for i, v := range record {
-			v = strings.Trim(v, " ")
-			instances.Set(specs[i], rowCounter, attrs[i].GetSysValFromString(v))
-		}
-		rowCounter++
-	}
-
-	for _, a := range template.AllClassAttributes() {
-		instances.AddClassAttribute(a)
 	}
 
 	return instances, nil
@@ -386,45 +326,11 @@ func ParseCSVToInstancesWithAttributeGroups(filepath string, attrGroups, classAt
 	// Allocate
 	instances.Extend(rowCount)
 
-	// Read the input
-	file, err := os.Open(filepath)
+	err = ParseCSVBuildInstances(filepath, hasHeaders, instances)
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
-	reader := csv.NewReader(file)
 
-	rowCounter := 0
-
-	for {
-		record, err := reader.Read()
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			return nil, err
-		}
-		if rowCounter == 0 {
-			// Skip header row
-			rowCounter++
-			continue
-		}
-		for i, v := range record {
-			v = strings.Trim(v, " ")
-			instances.Set(specs[i], rowCounter, attrs[i].GetSysValFromString(v))
-		}
-		rowCounter++
-	}
-
-	// Add class Attributes
-	for _, a := range instances.AllAttributes() {
-		name := a.GetName() // classAttrGroups
-		if _, ok := classAttrGroups[name]; ok {
-			err = instances.AddClassAttribute(a)
-			if err != nil {
-				panic(err)
-			}
-		}
-	}
 	return instances, nil
 
 }
