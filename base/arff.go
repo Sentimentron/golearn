@@ -81,9 +81,6 @@ func ParseARFFGetAttributes(filepath string) []Attribute {
 		case "real":
 			attr = new(FloatAttribute)
 			break
-		case "binary":
-			attr = new(BinaryAttribute)
-			break
 		default:
 			if fields[2][0] == '{' {
 				if fields[2][len(fields[2])-1] == '}' {
@@ -236,8 +233,6 @@ func ParseDenseARFFToInstances(filepath string) (ret *DenseInstances, err error)
 
 	// Read the data
 	// Seek past the header
-	headerSize := ParseARFFGetHeaderSize(f)
-	f.Seek(headerSize, 0)
 	err = ParseDenseARFFBuildInstancesFromReader(f, ret)
 	if err != nil {
 		ret = nil
