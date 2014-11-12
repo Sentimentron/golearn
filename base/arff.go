@@ -11,6 +11,63 @@ import (
 	"strings"
 )
 
+// SerializeInstancesToDenseARFF writes the given FixedDataGrid to a
+// densely-formatted ARFF file.
+func SerializeInstancesToDenseARFF(inst FixedDataGrid, path, relation string) error {
+
+	// Get all of the Attributes in a reasonable order
+	attrs := NonClassAttributes(inst)
+	cAttrs := inst.AllClassAttributes()
+	for _, c := range cAttrs {
+		attrs = append(attrs, c)
+	}
+
+	return SerializeInstancesToDenseARFFWithAttributes(inst, attrs, path, relation)
+
+}
+
+// SerializeInstancesToDenseARFFWithAttributes writes the given FixedDataGrid to a
+// densely-formatted ARFF file with the header Attributes in the order given.
+func SerializeInstancesToDenseARFFWithAttributes(inst FixedDataGrid, rawAttrs []Attribute, path, relation string) error {
+
+	// Open output file
+	f, err := os.OpenFile(path, os.O_RDWR, 0600)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	// Write @relation header
+	f.WriteString(fmt.Sprintf("@relation %s\n\n", relation))
+
+	// Get all Attribute specifications
+	attrs := ResolveAttributes(inst, rawAttrs)
+
+	// Write Attribute information
+	for _, s := range attrs {
+		attr := s.attr
+		t := "real"
+		if a, ok := attr.(*CategoricalAttribute); ok {
+			vals := a.GetValues()
+			t = fmt.Sprintf("{%s}", strings.Join(vals, ", "))
+		}
+		f.WriteString(fmt.Sprintf("@attribute %s %s\n", attr.GetName(), t))
+	}
+	f.WriteString("\n@data\n")
+
+	buf := make([]string, len(attrs))
+	inst.MapOverRows(attrs, func(val [][]byte, row int) (bool, error) {
+		for i, v := range val {
+			buf[i] = attrs[i].attr.GetStringFromSysVal(v)
+		}
+		f.WriteString(strings.Join(buf, ","))
+		f.WriteString("\n")
+		return true, nil
+	})
+
+	return nil
+}
+
 // ParseARFFGetRows returns the number of data rows in an ARFF file.
 func ParseARFFGetRows(filepath string) (int, error) {
 
@@ -131,29 +188,6 @@ func ParseARFFGetAttributes(filepath string) []Attribute {
 		}
 	}
 	return ret
-}
-
-func ParseARFFGetHeaderSize(r io.Reader) int64 {
-	var read int64
-	reader := bufio.NewScanner(r)
-	for reader.Scan() {
-		line := reader.Text()
-		read += int64(len(line))
-		if len(line) == 0 {
-			continue
-		}
-		if line[0] == '@' {
-			line = strings.ToLower(line)
-			line = strings.TrimSpace(line)
-			if line == "@data" {
-				break
-			}
-			continue
-		} else if line[0] == '%' {
-			continue
-		}
-	}
-	return read
 }
 
 // ParseDenseARFFBuildInstancesFromReader updates an [[#UpdatableDataGrid]] from a io.Reader

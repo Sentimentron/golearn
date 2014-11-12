@@ -1,9 +1,9 @@
 package base
 
 import (
-	"testing"
-
 	. "github.com/smartystreets/goconvey/convey"
+	"io/ioutil"
+	"testing"
 )
 
 func TestParseARFFGetRows(t *testing.T) {
@@ -80,5 +80,30 @@ func TestParseARFF2(t *testing.T) {
 		})
 
 	})
+}
 
+func TestSerializeToARFF(t *testing.T) {
+	Convey("Loading the weather dataset...", t, func() {
+		inst, err := ParseDenseARFFToInstances("../examples/datasets/weather.arff")
+		So(err, ShouldBeNil)
+		Convey("Saving back should suceed...", func() {
+			attrs := ParseARFFGetAttributes("../examples/datasets/weather.arff")
+			f, err := ioutil.TempFile("", "inst")
+			So(err, ShouldBeNil)
+			err = SerializeInstancesToDenseARFFWithAttributes(inst, attrs, f.Name(), "weather")
+			So(err, ShouldBeNil)
+			Convey("Reading the file back should be lossless...", func() {
+				inst2, err := ParseDenseARFFToInstances(f.Name())
+				So(err, ShouldBeNil)
+				So(InstancesAreEqual(inst, inst2), ShouldBeTrue)
+			})
+			Convey("The file should be exactly the same as the original...", func() {
+				ref, err := ioutil.ReadFile("../examples/datasets/weather.arff")
+				So(err, ShouldBeNil)
+				gen, err := ioutil.ReadFile(f.Name())
+				So(err, ShouldBeNil)
+				So(string(gen), ShouldEqual, string(ref))
+			})
+		})
+	})
 }
