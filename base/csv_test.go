@@ -99,6 +99,11 @@ func TestParseCSVToInstances(t *testing.T) {
 			})
 		})
 
+		Convey("Given a path to another reasonable CSV file", func() {
+			_, err := ParseCSVToInstances("../examples/datasets/c45-numeric.csv", true)
+			So(err, ShouldBeNil)
+		})
+
 		Convey("Given a path to a non-existent file", func() {
 			_, err := ParseCSVToInstances("../examples/datasets/non-existent.csv", true)
 

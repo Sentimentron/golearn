@@ -175,7 +175,7 @@ func ParseCSVSniffAttributeTypes(filepath string, hasHeaders bool) []Attribute {
 }
 
 // ParseCSVBuildInstancesFromReader updates an [[#UpdatableDataGrid]] from a io.Reader
-func ParseCSVBuildInstancesFromReader(r io.Reader, hasHeader bool, u UpdatableDataGrid) (err error) {
+func ParseCSVBuildInstancesFromReader(r io.Reader, attrs []Attribute, hasHeader bool, u UpdatableDataGrid) (err error) {
 	var rowCounter int
 
 	defer func() {
@@ -187,7 +187,7 @@ func ParseCSVBuildInstancesFromReader(r io.Reader, hasHeader bool, u UpdatableDa
 		}
 	}()
 
-	specs := ResolveAttributes(u, u.AllAttributes())
+	specs := ResolveAttributes(u, attrs)
 	reader := csv.NewReader(r)
 
 	for {
@@ -212,22 +212,16 @@ func ParseCSVBuildInstancesFromReader(r io.Reader, hasHeader bool, u UpdatableDa
 	return nil
 }
 
-// ParseCSVBuildInstances updates an [[#UpdatableDataGrid]] from a filepath in place
-func ParseCSVBuildInstances(filepath string, hasHeaders bool, u UpdatableDataGrid) error {
-
-	// Read the input
-	file, err := os.Open(filepath)
-	if err != nil {
-		panic(err)
-	}
-	defer file.Close()
-
-	return ParseCSVBuildInstancesFromReader(file, hasHeaders, u)
-}
-
 // ParseCSVToInstances reads the CSV file given by filepath and returns
 // the read Instances.
 func ParseCSVToInstances(filepath string, hasHeaders bool) (instances *DenseInstances, err error) {
+
+	// Open the file
+	f, err := os.Open(filepath)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
 
 	// Read the number of rows in the file
 	rowCount, err := ParseCSVGetRows(filepath)
@@ -250,7 +244,7 @@ func ParseCSVToInstances(filepath string, hasHeaders bool) (instances *DenseInst
 	}
 	instances.Extend(rowCount)
 
-	err = ParseCSVBuildInstances(filepath, hasHeaders, instances)
+	err = ParseCSVBuildInstancesFromReader(f, attrs, hasHeaders, instances)
 	if err != nil {
 		return nil, err
 	}
@@ -278,6 +272,13 @@ func ParseMatchAttributes(attrs, templateAttrs []Attribute) {
 // the read Instances, using another already read DenseInstances as a template.
 func ParseCSVToTemplatedInstances(filepath string, hasHeaders bool, template *DenseInstances) (instances *DenseInstances, err error) {
 
+	// Open the file
+	f, err := os.Open(filepath)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
 	// Read the number of rows in the file
 	rowCount, err := ParseCSVGetRows(filepath)
 	if err != nil {
@@ -297,7 +298,7 @@ func ParseCSVToTemplatedInstances(filepath string, hasHeaders bool, template *De
 	instances = CopyDenseInstances(template, templateAttrs)
 	instances.Extend(rowCount)
 
-	err = ParseCSVBuildInstances(filepath, hasHeaders, instances)
+	err = ParseCSVBuildInstancesFromReader(f, attrs, hasHeaders, instances)
 	if err != nil {
 		return nil, err
 	}
@@ -309,6 +310,13 @@ func ParseCSVToTemplatedInstances(filepath string, hasHeaders bool, template *De
 // and returns the read DenseInstances, but also makes sure to group any Attributes
 // specified in the first argument and also any class Attributes specified in the second
 func ParseCSVToInstancesWithAttributeGroups(filepath string, attrGroups, classAttrGroups map[string]string, attrOverrides map[int]Attribute, hasHeaders bool) (instances *DenseInstances, err error) {
+
+	// Open file
+	f, err := os.Open(filepath)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
 
 	// Read row count
 	rowCount, err := ParseCSVGetRows(filepath)
@@ -384,7 +392,7 @@ func ParseCSVToInstancesWithAttributeGroups(filepath string, attrGroups, classAt
 	// Allocate
 	instances.Extend(rowCount)
 
-	err = ParseCSVBuildInstances(filepath, hasHeaders, instances)
+	err = ParseCSVBuildInstancesFromReader(f, attrs, hasHeaders, instances)
 	if err != nil {
 		return nil, err
 	}
