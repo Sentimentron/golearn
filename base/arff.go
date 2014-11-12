@@ -69,27 +69,38 @@ func ParseARFFGetAttributes(filepath string) []Attribute {
 			continue
 		}
 		fields := strings.Fields(line)
-		if len(fields) != 3 {
+		if len(fields) < 3 {
 			continue
 		}
 		fields[0] = strings.ToLower(fields[0])
-		fields[2] = strings.ToLower(fields[2])
+		attrType := strings.ToLower(fields[2])
 		if fields[0] != "@attribute" {
 			continue
 		}
-		switch fields[2] {
+		switch attrType {
 		case "real":
 			attr = new(FloatAttribute)
 			break
 		default:
 			if fields[2][0] == '{' {
-				if fields[2][len(fields[2])-1] == '}' {
-					cats := strings.Split(fields[2][1:len(fields[2])-1], ",")
+				if strings.HasSuffix(fields[len(fields)-1], "}") {
+					var cats []string
+					if len(fields) > 3 {
+						cats = fields[2:len(fields)]
+					} else {
+						cats = strings.Split(fields[2], ",")
+					}
 					if len(cats) == 0 {
 						panic(fmt.Errorf("Empty categorical field on line '%s'", line))
 					}
-					for i, v := range cats {
+					cats[0] = cats[0][1:]                                            // Remove leading '{'
+					cats[len(cats)-1] = cats[len(cats)-1][:len(cats[len(cats)-1])-1] // Remove trailing '}'
+					for i, v := range cats {                                         // Miaow
 						cats[i] = strings.TrimSpace(v)
+						if strings.HasSuffix(cats[i], ",") {
+							// Strip end comma
+							cats[i] = cats[i][0 : len(cats[i])-1]
+						}
 					}
 					attr = NewCategoricalAttribute()
 					for _, v := range cats {
@@ -102,6 +113,7 @@ func ParseARFFGetAttributes(filepath string) []Attribute {
 				panic(fmt.Errorf("Unsupported Attribute type %s on line '%s'", fields[2], line))
 			}
 		}
+
 		if attr == nil {
 			panic(fmt.Errorf(line))
 		}
@@ -118,7 +130,6 @@ func ParseARFFGetAttributes(filepath string) []Attribute {
 			f.Precision = maxPrecision
 		}
 	}
-
 	return ret
 }
 
@@ -146,7 +157,7 @@ func ParseARFFGetHeaderSize(r io.Reader) int64 {
 }
 
 // ParseDenseARFFBuildInstancesFromReader updates an [[#UpdatableDataGrid]] from a io.Reader
-func ParseDenseARFFBuildInstancesFromReader(r io.Reader, u UpdatableDataGrid) (err error) {
+func ParseDenseARFFBuildInstancesFromReader(r io.Reader, attrs []Attribute, u UpdatableDataGrid) (err error) {
 	var rowCounter int
 
 	defer func() {
@@ -160,7 +171,7 @@ func ParseDenseARFFBuildInstancesFromReader(r io.Reader, u UpdatableDataGrid) (e
 
 	scanner := bufio.NewScanner(r)
 	reading := false
-	specs := ResolveAttributes(u, u.AllAttributes())
+	specs := ResolveAttributes(u, attrs)
 	for scanner.Scan() {
 		line := scanner.Text()
 		if strings.HasPrefix(line, "%") {
@@ -177,6 +188,12 @@ func ParseDenseARFFBuildInstancesFromReader(r io.Reader, u UpdatableDataGrid) (e
 					return err
 				}
 				for i, v := range r {
+					v = strings.TrimSpace(v)
+					if a, ok := specs[i].attr.(*CategoricalAttribute); ok {
+						if val := a.GetSysVal(v); val == nil {
+							panic(fmt.Errorf("Unexpected class on line '%s'", line))
+						}
+					}
 					u.Set(specs[i], rowCounter, specs[i].attr.GetSysValFromString(v))
 				}
 				rowCounter++
@@ -233,7 +250,7 @@ func ParseDenseARFFToInstances(filepath string) (ret *DenseInstances, err error)
 
 	// Read the data
 	// Seek past the header
-	err = ParseDenseARFFBuildInstancesFromReader(f, ret)
+	err = ParseDenseARFFBuildInstancesFromReader(f, attrs, ret)
 	if err != nil {
 		ret = nil
 	}

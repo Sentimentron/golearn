@@ -37,12 +37,12 @@ func TestParseARFFGetAttributes(t *testing.T) {
 			So(ok3, ShouldBeTrue)
 			So(ok4, ShouldBeTrue)
 			So(ok5, ShouldBeTrue)
-			So(sA.GetValues(), ShouldResemble, []string{"iris-setosa", "iris-versicolor", "iris-virginica"})
+			So(sA.GetValues(), ShouldResemble, []string{"Iris-setosa", "Iris-versicolor", "Iris-virginica"})
 		})
 	})
 }
 
-func TestParseARFF(t *testing.T) {
+func TestParseARFF1(t *testing.T) {
 	Convey("Should just be able to load in an ARFF...", t, func() {
 		inst, err := ParseDenseARFFToInstances("../examples/datasets/iris.arff")
 		So(err, ShouldBeNil)
@@ -51,4 +51,34 @@ func TestParseARFF(t *testing.T) {
 		So(inst.RowString(50), ShouldEqual, "7.0 3.2 4.7 1.4 Iris-versicolor")
 		So(inst.RowString(100), ShouldEqual, "6.3 3.3 6.0 2.5 Iris-virginica")
 	})
+}
+
+func TestParseARFF2(t *testing.T) {
+	Convey("Loading the weather dataset...", t, func() {
+		inst, err := ParseDenseARFFToInstances("../examples/datasets/weather.arff")
+		So(err, ShouldBeNil)
+
+		Convey("Attributes should be right...", func() {
+			So(GetAttributeByName(inst, "outlook"), ShouldNotBeNil)
+			So(GetAttributeByName(inst, "temperature"), ShouldNotBeNil)
+			So(GetAttributeByName(inst, "humidity"), ShouldNotBeNil)
+			So(GetAttributeByName(inst, "windy"), ShouldNotBeNil)
+			So(GetAttributeByName(inst, "play"), ShouldNotBeNil)
+			Convey("outlook attribute values should match reference...", func() {
+				outlookAttr := GetAttributeByName(inst, "outlook").(*CategoricalAttribute)
+				So(outlookAttr.GetValues(), ShouldResemble, []string{"sunny", "overcast", "rainy"})
+			})
+			Convey("windy values should match reference...", func() {
+				windyAttr := GetAttributeByName(inst, "windy").(*CategoricalAttribute)
+				So(windyAttr.GetValues(), ShouldResemble, []string{"TRUE", "FALSE"})
+			})
+			Convey("play values should match reference...", func() {
+				playAttr := GetAttributeByName(inst, "play").(*CategoricalAttribute)
+				So(playAttr.GetValues(), ShouldResemble, []string{"yes", "no"})
+			})
+
+		})
+
+	})
+
 }
