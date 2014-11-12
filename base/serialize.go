@@ -10,11 +10,56 @@ import (
 	"os"
 	"reflect"
 	"runtime"
+	"strings"
 )
 
 const (
 	SerializationFormatVersion = "golearn 0.5"
 )
+
+func SerializeInstancesToDenseArff(inst FixedDataGrid, path, relation string) error {
+
+	// Open output file
+	f, err := os.OpenFile(path, os.O_RDWR, 0600)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	// Write @relation header
+	f.WriteString(fmt.Sprintf("@relation %s\n\n", relation))
+
+	// Get all Attribute specifications
+	attrs := ResolveAttributes(inst, NonClassAttributes(inst))
+	cAttrs := ResolveAttributes(inst, inst.AllClassAttributes())
+	for _, c := range cAttrs {
+		attrs = append(attrs, c)
+	} // Place class Attributes on the end
+
+	// Write Attribute information
+	for _, s := range attrs {
+		attr := s.attr
+		t := "real"
+		if a, ok := attr.(*CategoricalAttribute); ok {
+			vals := a.GetValues()
+			t = fmt.Sprintf("{%s}", strings.Join(vals, ","))
+		}
+		f.WriteString(fmt.Sprintf("@attribute %s %s\n", attr.GetName(), t))
+	}
+	f.WriteString("\n@data\n")
+
+	buf := make([]string, len(attrs))
+	inst.MapOverRows(attrs, func(val [][]byte, row int) (bool, error) {
+		for i, v := range val {
+			buf[i] = attrs[i].attr.GetStringFromSysVal(v)
+		}
+		f.WriteString(strings.Join(buf, ","))
+		f.WriteString("\n")
+		return true, nil
+	})
+
+	return nil
+}
 
 func SerializeInstancesToFile(inst FixedDataGrid, path string) error {
 	f, err := os.OpenFile(path, os.O_RDWR, 0600)
