@@ -16,9 +16,6 @@ const (
 type Attribute interface {
 	json.Unmarshaler
 	json.Marshaler
-	// Returns the general characterstics of this Attribute .
-	// to avoid the overhead of casting
-	GetType() int
 	// Returns the human-readable name of this Attribute.
 	GetName() string
 	// Sets the human-readable name of this Attribute.

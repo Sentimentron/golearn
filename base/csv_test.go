@@ -47,8 +47,8 @@ func TestParseCSVGetAttributes(t *testing.T) {
 		speciesAttribute := attributes[4]
 
 		Convey("It gets the correct types for the headers based on the column values", func() {
-			So(sepalLengthAttribute.GetType(), ShouldEqual, Float64Type)
-			So(speciesAttribute.GetType(), ShouldEqual, CategoricalType)
+			So(sepalLengthAttribute, ShouldHaveSameTypeAs, new(FloatAttribute))
+			So(speciesAttribute, ShouldHaveSameTypeAs, new(CategoricalAttribute))
 		})
 
 		Convey("It gets the correct attribute names", func() {
@@ -63,11 +63,11 @@ func TestParseCSVSniffAttributeTypes(t *testing.T) {
 		attributes := ParseCSVSniffAttributeTypes("../examples/datasets/iris_headers.csv", true)
 
 		Convey("It gets the correct types", func() {
-			So(attributes[0].GetType(), ShouldEqual, Float64Type)
-			So(attributes[1].GetType(), ShouldEqual, Float64Type)
-			So(attributes[2].GetType(), ShouldEqual, Float64Type)
-			So(attributes[3].GetType(), ShouldEqual, Float64Type)
-			So(attributes[4].GetType(), ShouldEqual, CategoricalType)
+			So(attributes[0], ShouldHaveSameTypeAs, new(FloatAttribute))
+			So(attributes[1], ShouldHaveSameTypeAs, new(FloatAttribute))
+			So(attributes[2], ShouldHaveSameTypeAs, new(FloatAttribute))
+			So(attributes[3], ShouldHaveSameTypeAs, new(FloatAttribute))
+			So(attributes[4], ShouldHaveSameTypeAs, new(CategoricalAttribute))
 		})
 	})
 }
@@ -118,8 +118,8 @@ func TestParseCSVToInstances(t *testing.T) {
 
 			Convey("It parses the data correctly, assigning the correct types to attributes", func() {
 				attributes := instances.AllAttributes()
-				So(attributes[0].GetType(), ShouldEqual, Float64Type)
-				So(attributes[1].GetType(), ShouldEqual, CategoricalType)
+				So(attributes[0], ShouldHaveSameTypeAs, new(FloatAttribute))
+				So(attributes[1], ShouldHaveSameTypeAs, new(CategoricalAttribute))
 			})
 		})
 	})
