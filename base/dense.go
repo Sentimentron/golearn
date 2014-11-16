@@ -23,6 +23,8 @@ type DenseInstances struct {
 	floatRowSizeBytes int
 	catRowSizeBytes   int
 	binRowSizeBits    int
+	// Storage for variable length stuff
+
 }
 
 // NewDenseInstances generates a new DenseInstances set
