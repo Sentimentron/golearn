@@ -44,3 +44,10 @@ type Attribute interface {
 	// when considered together
 	Compatible(Attribute) bool
 }
+
+// Not everything in a variable Attribute field has the same length (e.g. strings)
+type VariableAttribute interface {
+	Attribute
+	// How much storage is needed to contain this value?
+	GetLengthFromSysVal([]byte) []byte
+}
