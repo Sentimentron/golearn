@@ -10,8 +10,7 @@ import (
 func readMnist() (*base.DenseInstances, *base.DenseInstances) {
 	// Create the class Attribute
 	classAttrs := make(map[int]base.Attribute)
-	classAttrs[0] = base.NewCategoricalAttribute()
-	classAttrs[0].SetName("label")
+	classAttrs[0] = base.NewCategoricalAttribute("label")
 	// Setup the class Attribute to be in its own group
 	classAttrGroups := make(map[string]string)
 	classAttrGroups["label"] = "ClassGroup"

@@ -159,7 +159,7 @@ func ParseARFFGetAttributes(filepath string) []Attribute {
 							cats[i] = cats[i][0 : len(cats[i])-1]
 						}
 					}
-					attr = NewCategoricalAttribute()
+					attr = NewCategoricalAttribute(fields[1])
 					for _, v := range cats {
 						attr.GetSysValFromString(v)
 					}
