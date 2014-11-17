@@ -49,10 +49,10 @@ func TestStringAttributeHandling(t *testing.T) {
 		d.Set(specs[0], 0, attrs[0].GetSysValFromString("Hello World"))
 		d.Set(specs[1], 0, attrs[1].GetSysValFromString("Greeting"))
 		d.Set(specs[0], 1, attrs[0].GetSysValFromString("Goodbye cruel world!"))
-		d.Set(specs[0], 1, attrs[1].GetSysValFromString("Farewell"))
+		d.Set(specs[1], 1, attrs[1].GetSysValFromString("Farewell"))
 		Convey("Rows should appear correct...", func() {
-			So(d.RowString(0), ShouldEqual, "Hello World   Greeting")
-			So(d.RowString(1), ShouldEqual, "Goodbye cruel world   Farewell")
+			So(d.RowString(0), ShouldEqual, "Hello World Greeting")
+			So(d.RowString(1), ShouldEqual, "Goodbye cruel world! Farewell")
 		})
 	})
 
