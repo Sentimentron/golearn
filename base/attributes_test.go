@@ -22,7 +22,7 @@ func TestFloatAttributeSysVal(t *testing.T) {
 }
 
 func TestCategoricalAttributeVal(t *testing.T) {
-	attr := NewCategoricalAttribute()
+	attr := NewCategoricalAttribute("")
 	Convey("Given some string", t, func() {
 		x := "hello world!"
 		Convey("When the string gets converted", func() {

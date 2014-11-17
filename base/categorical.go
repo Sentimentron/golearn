@@ -38,9 +38,9 @@ func (Attr *CategoricalAttribute) UnmarshalJSON(data []byte) error {
 }
 
 // NewCategoricalAttribute creates a blank CategoricalAttribute.
-func NewCategoricalAttribute() *CategoricalAttribute {
+func NewCategoricalAttribute(name string) *CategoricalAttribute {
 	return &CategoricalAttribute{
-		"",
+		name,
 		make([]string, 0),
 	}
 }
