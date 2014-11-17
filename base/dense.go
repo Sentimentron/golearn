@@ -23,8 +23,7 @@ type DenseInstances struct {
 	floatRowSizeBytes int
 	catRowSizeBytes   int
 	binRowSizeBits    int
-	// Storage for variable length stuff
-	varStorageGroup *PackedVariableStorageGroup
+	varRowSizeBytes   int
 }
 
 // NewDenseInstances generates a new DenseInstances set
@@ -43,7 +42,7 @@ func NewDenseInstances() *DenseInstances {
 		0,
 		0,
 		0,
-		NewPackedVariableStorageGroup(),
+		0,
 	}
 }
 
@@ -62,7 +61,14 @@ func (inst *DenseInstances) createAttributeGroup(name string, size int) {
 	}
 
 	// Create the AttributeGroup information
-	if size != 0 {
+	if size == -1 {
+		ag := new(VariableAttributeGroup)
+		ag.parent = inst
+		ag.attributes = make([]VariableAttribute, 0)
+		ag.alloc = make([]byte, 0)
+		ag.p = NewPackedVariableStorageGroup()
+		agAdd = ag
+	} else if size != 0 {
 		ag := new(FixedAttributeGroup)
 		ag.parent = inst
 		ag.attributes = make([]Attribute, 0)
@@ -148,6 +154,7 @@ func (inst *DenseInstances) AddAttribute(a Attribute) AttributeSpec {
 	// Generate a default AttributeGroup name
 	ag := "FLOAT"
 	generatingBinClass := false
+	generatingVarClass := false
 	if ag, ok = inst.tmpAttrAgMap[a]; ok {
 		// Retrieved the group id
 	} else if _, ok := a.(*CategoricalAttribute); ok {
@@ -163,13 +170,20 @@ func (inst *DenseInstances) AddAttribute(a Attribute) AttributeSpec {
 		cur = (inst.binRowSizeBits / 8) / os.Getpagesize()
 		ag = fmt.Sprintf("BIN%d", cur)
 		generatingBinClass = true
+	} else if _, ok := a.(VariableAttribute); ok {
+		inst.varRowSizeBytes += 8
+		cur = inst.varRowSizeBytes / os.Getpagesize()
+		ag = fmt.Sprintf("VAR%d", cur)
+		generatingVarClass = true
 	} else {
 		panic("Unrecognised Attribute type")
 	}
 
 	// Create the ag if it doesn't exist
 	if _, ok := inst.agMap[ag]; !ok {
-		if !generatingBinClass {
+		if generatingVarClass {
+			inst.createAttributeGroup(ag, -1)
+		} else if !generatingBinClass {
 			inst.createAttributeGroup(ag, 8)
 		} else {
 			inst.createAttributeGroup(ag, 0)
@@ -380,6 +394,7 @@ func (inst *DenseInstances) Extend(rows int) error {
 //
 // IMPORTANT: Will panic() if the val is not the right length
 func (inst *DenseInstances) Set(a AttributeSpec, row int, val []byte) {
+	// Save a reference/value in the right pond.
 	inst.ags[a.pond].set(a.position, row, val)
 }
 
@@ -394,6 +409,7 @@ func (inst *DenseInstances) Get(a AttributeSpec, row int) []byte {
 func (inst *DenseInstances) RowString(row int) string {
 	var buffer bytes.Buffer
 	first := true
+
 	for _, p := range inst.ags {
 		if first {
 			first = false
