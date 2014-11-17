@@ -28,7 +28,7 @@ type DenseInstances struct {
 }
 
 // NewDenseInstances generates a new DenseInstances set
-// with an anonymous EDF mapping and default settings.
+// with default settings.
 func NewDenseInstances() *DenseInstances {
 	return &DenseInstances{
 		make(map[string]int),
