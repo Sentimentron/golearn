@@ -5,6 +5,29 @@ import (
 	"testing"
 )
 
+func TestStringAttributeSysVal(t *testing.T) {
+
+	Convey("Given some string", t, func() {
+		x := "Støre"
+		attr := NewStringAttribute("Hi")
+		Convey("When the string gets packed", func() {
+			packed := attr.GetSysValFromString(x)
+			Convey("The unpacked version should be the same...", func() {
+				unpacked := attr.GetStringFromSysVal(packed)
+				So(unpacked, ShouldEqual, x)
+			})
+			Convey("Should have the right bytes", func() {
+				So(packed, ShouldResemble, []byte{'S', 't', 0xc3, 0xb8, 'r', 'e'})
+			})
+			Convey("Length value should be right", func() {
+				So(len(packed), ShouldEqual, 6)
+				So(attr.GetLengthFromSysVal(packed), ShouldEqual, 6)
+			})
+		})
+	})
+
+}
+
 func TestFloatAttributeSysVal(t *testing.T) {
 	Convey("Given some float", t, func() {
 		x := "1.21"

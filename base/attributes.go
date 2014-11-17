@@ -49,5 +49,5 @@ type Attribute interface {
 type VariableAttribute interface {
 	Attribute
 	// How much storage is needed to contain this value?
-	GetLengthFromSysVal([]byte) []byte
+	GetLengthFromSysVal([]byte) int
 }
