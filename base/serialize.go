@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	SerializationFormatVersion = "golearn 0.5"
+	SerializationFormatVersion = "golearn 0.6"
 )
 
 func SerializeInstancesToFile(inst FixedDataGrid, path string) error {
@@ -224,6 +224,7 @@ func DeserializeInstances(f io.Reader) (ret *DenseInstances, err error) {
 		}
 		allAttributes[i+len(normalAttrs)] = v
 	}
+
 	// Allocate memory
 	err = ret.Extend(int(rowCount))
 	if err != nil {
@@ -249,8 +250,19 @@ func DeserializeInstances(f io.Reader) (ret *DenseInstances, err error) {
 	// Finally, read the values out of the data section
 	for i := 0; i < rowCount; i++ {
 		for _, s := range specs {
-			r := ret.Get(s, i)
-			n, err := tr.Read(r)
+			// First, read the length
+			l := make([]byte, 8)
+			n, err := tr.Read(l)
+			if n != 8 {
+				return nil, fmt.Errorf("Expected an 8 byte length specifier on row %d", i)
+			}
+			if err != nil {
+				return nil, fmt.Errorf("Error reading length: %s", err)
+			}
+			length := UnpackBytesToU64(l)
+			// Then read the data
+			r := make([]byte, length)
+			n, err = tr.Read(r)
 			if n != len(r) {
 				return nil, fmt.Errorf("Expected %d bytes (read %d) on row %d", len(r), n, i)
 			}
@@ -327,7 +339,7 @@ func SerializeInstances(inst FixedDataGrid, f io.Writer) error {
 	dataLength := int64(0)
 	inst.MapOverRows(allSpecs, func(val [][]byte, row int) (bool, error) {
 		for _, v := range val {
-			dataLength += int64(len(v))
+			dataLength += int64(len(v)) + 8 // (8 bytes for the length specifier)
 		}
 		return true, nil
 	})
@@ -345,10 +357,16 @@ func SerializeInstances(inst FixedDataGrid, f io.Writer) error {
 	writtenLength := int64(0)
 	if err := inst.MapOverRows(allSpecs, func(val [][]byte, row int) (bool, error) {
 		for _, v := range val {
-			wl, err := tw.Write(v)
+			l := uint64(len(v))
+			wl, err := tw.Write(PackU64ToBytes(l))
 			writtenLength += int64(wl)
-			if err != nil {
-				return false, err
+			if (wl != 8) || (err != nil) {
+				return false, fmt.Errorf("Could not write length on line %i, error %s", row, err)
+			}
+			wl, err = tw.Write(v)
+			writtenLength += int64(wl)
+			if (wl != len(v)) || (err != nil) {
+				return false, fmt.Errorf("Could not write data on line %i, error %s", row, err)
 			}
 		}
 		return true, nil
