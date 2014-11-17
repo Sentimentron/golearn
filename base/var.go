@@ -18,16 +18,16 @@ func NewPackedVariableStorageGroup() *PackedVariableStorageGroup {
 }
 
 // Allocate allocates and/or returns size bytes for permanent storage.
-func (p *PackedVariableStorageGroup) Allocate(size int) (int, []byte) {
+func (p *PackedVariableStorageGroup) Allocate(size int) (uint64, []byte) {
 	p.m.Lock()
 	defer p.m.Unlock()
 
 	ret := make([]byte, size)
 	p.v = append(p.v, ret)
-	return len(p.v) - 1, ret
+	return uint64(len(p.v) - 1), ret
 }
 
-//
-func (p *PackedVariableStorageGroup) Retrieve(off int) []byte {
+// Returns a given set of bytes
+func (p *PackedVariableStorageGroup) Retrieve(off uint64) []byte {
 	return p.v[off]
 }

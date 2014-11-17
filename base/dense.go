@@ -24,7 +24,7 @@ type DenseInstances struct {
 	catRowSizeBytes   int
 	binRowSizeBits    int
 	// Storage for variable length stuff
-
+	varStorageGroup *PackedVariableStorageGroup
 }
 
 // NewDenseInstances generates a new DenseInstances set
@@ -43,6 +43,7 @@ func NewDenseInstances() *DenseInstances {
 		0,
 		0,
 		0,
+		NewPackedVariableStorageGroup(),
 	}
 }
 
