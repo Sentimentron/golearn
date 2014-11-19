@@ -52,8 +52,8 @@ func (s *StringAttribute) String() string {
 	return fmt.Sprintf("StringAttribute(%s)", s.Name)
 }
 
-// GetSysVal returns the byte package of this thing.
-func (s *StringAttribute) GetSysVal(d interface{}) ([]byte, error) {
+// GetSysValFromInterface returns the byte package of this thing.
+func (s *StringAttribute) GetSysValFromInterface(d interface{}) ([]byte, error) {
 	if s, ok := d.(string); ok {
 		if !utf8.ValidString(s) {
 			return nil, fmt.Errorf("'%s' is not a valid UTF-8 string", d)
@@ -61,6 +61,11 @@ func (s *StringAttribute) GetSysVal(d interface{}) ([]byte, error) {
 		return []byte(s), nil
 	}
 	return nil, fmt.Errorf("Not a string value!")
+}
+
+// GetInterfaceFromSysVal returns the string from these bytes.
+func (s *StringAttribute) GetInterfaceFromSysVal(d []byte) interface{} {
+	return string(d)
 }
 
 // GetSysValFromString returns the []byte representation of a given string.

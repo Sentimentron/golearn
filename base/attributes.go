@@ -23,7 +23,9 @@ type Attribute interface {
 	// Gets a human-readable overview of this Attribute for debugging.
 	String() string
 	// Converts a given value into a system representation.
-	GetSysVal(interface{}) ([]byte, error)
+	GetSysValFromInterface(interface{}) ([]byte, error)
+	// Converts a system representation to some value
+	GetInterfaceFromSysVal([]byte) interface{}
 	// Converts a value given from a human-readable string into a system
 	// representation. For example, a CategoricalAttribute with values
 	// ["iris-setosa", "iris-virginica"] would return the float64

@@ -65,8 +65,8 @@ func (Attr *CategoricalAttribute) GetType() int {
 	return CategoricalType
 }
 
-// GetSysVal returns the system representation of userVal as an index into the Values slice
-func (Attr *CategoricalAttribute) GetSysVal(v interface{}) ([]byte, error) {
+// GetSysValFromInterface returns the system representation of userVal as an index into the Values slice
+func (Attr *CategoricalAttribute) GetSysValFromInterface(v interface{}) ([]byte, error) {
 	if userVal, ok := v.(string); ok {
 		for idx, val := range Attr.values {
 			if val == userVal {
@@ -74,9 +74,16 @@ func (Attr *CategoricalAttribute) GetSysVal(v interface{}) ([]byte, error) {
 			}
 		}
 		Attr.values = append(Attr.values, userVal)
-		return Attr.GetSysVal(userVal)
+		return Attr.GetSysValFromInterface(userVal)
 	}
 	return nil, fmt.Errorf("Needs to be a string")
+}
+
+// GetInterfaceFromSysVal returns the string represented by d.
+func (Attr *CategoricalAttribute) GetInterfaceFromSysVal(d []byte) interface{} {
+
+	off := UnpackBytesToU64(d)
+	return Attr.values[off]
 }
 
 // HasCategoricalValue returns whether the given value is already recorded
