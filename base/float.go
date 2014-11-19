@@ -103,10 +103,19 @@ func (Attr *FloatAttribute) CheckSysValFromString(rawVal string) ([]byte, error)
 	return ret, nil
 }
 
+// GetSysVal returns the system representation of its argument.
+// Argument must be a float for it to work.
+func (Attr *FloatAttribute) GetSysVal(d interface{}) ([]byte, error) {
+	if val, ok := d.(float64); ok {
+		return PackFloatToBytes(val), nil
+	}
+	return nil, fmt.Errorf("Not a compatible number")
+}
+
 // GetSysValFromString parses the given rawVal string to a float64 and returns it.
 //
 // float64 happens to be a 1-to-1 mapping to the system representation.
-// IMPORTANT: This function panic()s if rawVal is not a valid float.
+// IMPOReTANT: This function panic()s if rawVal is not a valid float.
 // Use CheckSysValFromString to confirm.
 func (Attr *FloatAttribute) GetSysValFromString(rawVal string) []byte {
 	f, err := Attr.CheckSysValFromString(rawVal)

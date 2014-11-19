@@ -47,6 +47,18 @@ func (b *BinaryAttribute) GetType() int {
 	return BinaryType
 }
 
+// GetSysVal returns either a 1 or a zero in a single byte.
+func (b *BinaryAttribute) GetSysVal(d interface{}) ([]byte, error) {
+	ret := make([]byte, 1)
+	if val, ok := d.(bool); ok {
+		if val {
+			ret[0] = 1
+		}
+		return ret, nil
+	}
+	return nil, fmt.Errorf("Not a binary value!")
+}
+
 // GetSysValFromString returns either 1 or 0 in a single byte.
 func (b *BinaryAttribute) GetSysValFromString(userVal string) []byte {
 	f, err := strconv.ParseFloat(userVal, 64)
