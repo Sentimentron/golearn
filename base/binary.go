@@ -47,8 +47,8 @@ func (b *BinaryAttribute) GetType() int {
 	return BinaryType
 }
 
-// GetSysVal returns either a 1 or a zero in a single byte.
-func (b *BinaryAttribute) GetSysVal(d interface{}) ([]byte, error) {
+// GetSysValFromInterface returns either a 1 or a zero in a single byte.
+func (b *BinaryAttribute) GetSysValFromInterface(d interface{}) ([]byte, error) {
 	ret := make([]byte, 1)
 	if val, ok := d.(bool); ok {
 		if val {
@@ -57,6 +57,14 @@ func (b *BinaryAttribute) GetSysVal(d interface{}) ([]byte, error) {
 		return ret, nil
 	}
 	return nil, fmt.Errorf("Not a binary value!")
+}
+
+// GetInterfaceFromSysVal returns a boolean after unmarshaling.
+func (b *BinaryAttribute) GetInterfaceFromSysVal(d []byte) interface{} {
+	if d[0] > 0 {
+		return true
+	}
+	return false
 }
 
 // GetSysValFromString returns either 1 or 0 in a single byte.
