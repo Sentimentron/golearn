@@ -66,22 +66,28 @@ func (Attr *CategoricalAttribute) GetType() int {
 }
 
 // GetSysVal returns the system representation of userVal as an index into the Values slice
-// If the userVal can't be found, it returns nothing.
-func (Attr *CategoricalAttribute) GetSysVal(userVal string) []byte {
-	for idx, val := range Attr.values {
-		if val == userVal {
-			return PackU64ToBytes(uint64(idx))
+func (Attr *CategoricalAttribute) GetSysVal(v interface{}) ([]byte, error) {
+	if userVal, ok := v.(string); ok {
+		for idx, val := range Attr.values {
+			if val == userVal {
+				return PackU64ToBytes(uint64(idx)), nil
+			}
 		}
+		Attr.values = append(Attr.values, userVal)
+		return Attr.GetSysVal(userVal)
 	}
-	return nil
+	return nil, fmt.Errorf("Needs to be a string")
 }
 
-// GetUsrVal returns a human-readable representation of the given sysVal.
-//
-// IMPORTANT: this function doesn't check the boundaries of the array.
-func (Attr *CategoricalAttribute) GetUsrVal(sysVal []byte) string {
-	idx := UnpackBytesToU64(sysVal)
-	return Attr.values[idx]
+// HasCategoricalValue returns whether the given value is already recorded
+// in this CategoricalAttribute.
+func (Attr *CategoricalAttribute) HasCategoricalValue(s string) bool {
+	for _, val := range Attr.values {
+		if val == s {
+			return true
+		}
+	}
+	return false
 }
 
 // GetSysValFromString returns the system representation of rawVal
@@ -89,8 +95,7 @@ func (Attr *CategoricalAttribute) GetUsrVal(sysVal []byte) string {
 // the Values slice, it is appended.
 //
 // IMPORTANT: If no system representation yet exists, this functions adds it.
-// If you need to determine whether rawVal exists: use GetSysVal and check
-// for a zero-length return value.
+// If you need to determine whether rawVal exists: use HasCategoricalValue.
 //
 // Example: if the CategoricalAttribute contains the values ["iris-setosa",
 // "iris-virginica"] and "iris-versicolor" is provided as the argument,

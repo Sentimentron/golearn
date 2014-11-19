@@ -224,7 +224,7 @@ func ParseDenseARFFBuildInstancesFromReader(r io.Reader, attrs []Attribute, u Up
 				for i, v := range r {
 					v = strings.TrimSpace(v)
 					if a, ok := specs[i].attr.(*CategoricalAttribute); ok {
-						if val := a.GetSysVal(v); val == nil {
+						if !a.HasCategoricalValue(v) {
 							panic(fmt.Errorf("Unexpected class on line '%s'", line))
 						}
 					}

@@ -52,6 +52,17 @@ func (s *StringAttribute) String() string {
 	return fmt.Sprintf("StringAttribute(%s)", s.Name)
 }
 
+// GetSysVal returns the byte package of this thing.
+func (s *StringAttribute) GetSysVal(d interface{}) ([]byte, error) {
+	if s, ok := d.(string); ok {
+		if !utf8.ValidString(s) {
+			return nil, fmt.Errorf("'%s' is not a valid UTF-8 string", d)
+		}
+		return []byte(s), nil
+	}
+	return nil, fmt.Errorf("Not a string value!")
+}
+
 // GetSysValFromString returns the []byte representation of a given string.
 func (s *StringAttribute) GetSysValFromString(str string) []byte {
 	if !utf8.ValidString(str) {
