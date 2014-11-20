@@ -21,3 +21,10 @@ type Filter interface {
 	// Builds the filter
 	Train() error
 }
+
+// FixedFilter is a bit simpler, but less powerful than a regular Filter
+// You train it, and then give it DataGrids, and it gives you output.
+type FixedFilter interface {
+	Configure(FixedDataGrid) error
+	Transform(FixedDataGrid) FixedDataGrid
+}
