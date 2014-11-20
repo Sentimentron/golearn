@@ -5,7 +5,9 @@ import (
 	"fmt"
 )
 
-type SparseInstances struct {
+// SemiSparseInstances are used to represent sparse data which always
+// has a class value (i.e. the class value is never unset).
+type SemiSparseInstances struct {
 	d           *DenseInstances        // Holds stuff that must be defined
 	c           map[Attribute]bool     // Class Attributes
 	s           map[int]map[int][]byte // Sparse storage
@@ -14,12 +16,12 @@ type SparseInstances struct {
 	attrCounter int                    // Attribute counter
 }
 
-// NewSparseInstances generates a new set of SparseInstances.
+// NewSemiSparseInstances generates a new set of SemiSparseInstances.
 // The argument is a slice of class Attributes. New ones can't
 // be added at runtime.
-func NewSparseInstances(cls []Attribute) *SparseInstances {
+func NewSemiSparseInstances(cls []Attribute) *SemiSparseInstances {
 
-	ret := &SparseInstances{
+	ret := &SemiSparseInstances{
 		NewDenseInstances(),
 		make(map[Attribute]bool),
 		make(map[int]map[int][]byte),
@@ -38,7 +40,7 @@ func NewSparseInstances(cls []Attribute) *SparseInstances {
 }
 
 // GetAttribute returns an AttributeSpec for a given attribute.
-func (s *SparseInstances) GetAttribute(a Attribute) (AttributeSpec, error) {
+func (s *SemiSparseInstances) GetAttribute(a Attribute) (AttributeSpec, error) {
 	// Check in local store
 	if v, ok := s.a[a]; ok {
 		return AttributeSpec{0, v, a}, nil
@@ -48,24 +50,21 @@ func (s *SparseInstances) GetAttribute(a Attribute) (AttributeSpec, error) {
 
 }
 
-// AllAttributes returns all Attributes defined for this SparseInstances.
-func (s *SparseInstances) AllAttributes() []Attribute {
-	ret := s.d.AllAttributes()
+// AllAttributes returns all Attributes defined for this SemiSparseInstances.
+func (s *SemiSparseInstances) AllAttributes() []Attribute {
+
 	// Have to sort everything by position
 	inv := make([]Attribute, len(s.a))
 	for a, i := range s.a {
 		inv[i] = a
 	}
 
-	for _, a := range inv {
-		ret = append(ret, a)
-	}
-	return ret
+	return inv
 }
 
 // AddClassAttribute inserts a class Attribute, as long as Extend() or Set()
 // hasn't been called.
-func (s *SparseInstances) AddClassAttribute(a Attribute) error {
+func (s *SemiSparseInstances) AddClassAttribute(a Attribute) error {
 	// Check that nothing's been allocated yet
 	_, rows := s.d.Size()
 	if rows > 0 {
@@ -89,7 +88,7 @@ func (s *SparseInstances) AddClassAttribute(a Attribute) error {
 
 // RemoveClassAttribute unsets a given Attribute, as long as Extend() or
 // Set() hasn't been called
-func (s *SparseInstances) RemoveClassAttribute(a Attribute) error {
+func (s *SemiSparseInstances) RemoveClassAttribute(a Attribute) error {
 	// Remove classhood
 	s.c[a] = false
 
@@ -97,15 +96,16 @@ func (s *SparseInstances) RemoveClassAttribute(a Attribute) error {
 }
 
 // AllClassAttributes returns a list of all the defined class Attributes.
-func (s *SparseInstances) AllClassAttributes() []Attribute {
+func (s *SemiSparseInstances) AllClassAttributes() []Attribute {
 	return s.d.AllClassAttributes()
 }
 
 // MapOverRows is a convenience function for iteration. Default values
-// returned if nothing's explicitly set.
+// returned if nothing's explicitly set. If the default value is missing
+// or set to nil, the entire row's skipped.
 //
 // IMPORTANT: rows will not be ordered.
-func (s *SparseInstances) MapOverRows(as []AttributeSpec, f func([][]byte, int) (bool, error)) error {
+func (s *SemiSparseInstances) MapOverRows(as []AttributeSpec, f func([][]byte, int) (bool, error)) error {
 
 	// Split into class Attributes and not class attributes
 	classAttributes := make(map[AttributeSpec]bool)
@@ -158,7 +158,9 @@ func (s *SparseInstances) MapOverRows(as []AttributeSpec, f func([][]byte, int) 
 	return nil
 }
 
-func (s *SparseInstances) RowString(row int) string {
+// RowString returns a string representing the values on a given
+// line.
+func (s *SemiSparseInstances) RowString(row int) string {
 	var buf bytes.Buffer
 	as := ResolveAllAttributes(s)
 	for i, a := range as {
@@ -171,13 +173,17 @@ func (s *SparseInstances) RowString(row int) string {
 	return buf.String()
 }
 
-func (s *SparseInstances) Size() (int, int) {
+// Size returns the dimensions of this SemiSparseInstances.
+// First value is the number of columns, second is the number of rows.
+func (s *SemiSparseInstances) Size() (int, int) {
 	_, rows := s.d.Size()
 	cols := len(s.AllAttributes())
 	return cols, rows
 }
 
-func (s *SparseInstances) Get(as AttributeSpec, row int) []byte {
+// Get retrieves the []byte slice stored at a given AttributeSpec, row
+// coordinate.
+func (s *SemiSparseInstances) Get(as AttributeSpec, row int) []byte {
 	a := as.GetAttribute()
 	if s.c[a] {
 		// class attribute
@@ -193,11 +199,16 @@ func (s *SparseInstances) Get(as AttributeSpec, row int) []byte {
 	return s.defaultVals[a]
 }
 
-func (s *SparseInstances) Set(a AttributeSpec, row int, val []byte) {
+// Set sets the []byte slice at a given AttributeSpec, row coordinate.
+func (s *SemiSparseInstances) Set(a AttributeSpec, row int, val []byte) {
 	pos := a.position
 	_, maxRow := s.d.Size()
 	if row > maxRow {
-		panic("Row out of range! Call Extend() first")
+		rowsNeeded := row - maxRow
+		err := s.Extend(rowsNeeded)
+		if err != nil {
+			panic(fmt.Errorf("Row out of range, failed to Extend(): %s", err))
+		}
 	}
 	if s.c[a.GetAttribute()] {
 		s.d.Set(a, row, val)
@@ -209,7 +220,8 @@ func (s *SparseInstances) Set(a AttributeSpec, row int, val []byte) {
 	}
 }
 
-func (s *SparseInstances) AddAttribute(a Attribute) AttributeSpec {
+// AddAttribute inserts an Attribute and then returns a specification.
+func (s *SemiSparseInstances) AddAttribute(a Attribute) AttributeSpec {
 	var ret AttributeSpec
 	ret.position = s.attrCounter
 	s.a[a] = s.attrCounter
@@ -217,11 +229,14 @@ func (s *SparseInstances) AddAttribute(a Attribute) AttributeSpec {
 	return ret
 }
 
-func (s *SparseInstances) Extend(r int) error {
+// Extends the underlying class Attribute vector.
+func (s *SemiSparseInstances) Extend(r int) error {
 	return s.d.Extend(r)
 }
 
-func (s *SparseInstances) SetDefaultValueForAttribute(a Attribute, d interface{}) error {
+// SetDefaultValueForAttribute sets what value is returned for a given
+// Attribute if nothing's been set.
+func (s *SemiSparseInstances) SetDefaultValueForAttribute(a Attribute, d interface{}) error {
 	val, err := a.GetSysValFromInterface(d)
 	if err != nil {
 		return err
