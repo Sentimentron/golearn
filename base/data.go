@@ -49,3 +49,11 @@ type UpdatableDataGrid interface {
 	// Allocates additional room to hold a number of rows
 	Extend(int) error
 }
+
+// SparseDataGrid implementations are expected to return a default value when
+// one has not been explictly set (all class Attributes are expected to have values).
+type SparseDataGrid interface {
+	UpdatableDataGrid
+	// SetDefaultValueForAttribute associates a value with a given Attribute.
+	SetDefaultValueForAttribute(Attribute, d interface{}) error
+}
