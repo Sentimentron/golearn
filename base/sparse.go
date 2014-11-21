@@ -151,6 +151,9 @@ func (s *SparseInstances) Get(as AttributeSpec, row int) []byte {
 			return v
 		}
 	}
+	if _, ok := s.defaultVals[as.GetAttribute()]; !ok {
+		panic(fmt.Errorf("No default value set for %s", as.GetAttribute()))
+	}
 	return s.defaultVals[as.GetAttribute()]
 }
 

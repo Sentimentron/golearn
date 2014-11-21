@@ -66,7 +66,7 @@ func NewBernoulliNBClassifier() *BernoulliNBClassifier {
 
 // Fill data matrix with Bernoulli Naive Bayes model. All values
 // necessary for calculating prior probability and p(f_i)
-func (nb *BernoulliNBClassifier) Fit(X base.FixedDataGrid) {
+func (nb *BernoulliNBClassifier) Fit(X base.FixedDataGrid) error {
 
 	// Check that all Attributes are binary
 	classAttrs := X.AllClassAttributes()
@@ -74,14 +74,14 @@ func (nb *BernoulliNBClassifier) Fit(X base.FixedDataGrid) {
 	featAttrs := base.AttributeDifference(allAttrs, classAttrs)
 	for i := range featAttrs {
 		if _, ok := featAttrs[i].(*base.BinaryAttribute); !ok {
-			panic(fmt.Sprintf("%v: Should be BinaryAttribute", featAttrs[i]))
+			return fmt.Errorf("%v: Should be BinaryAttribute", featAttrs[i])
 		}
 	}
 	featAttrSpecs := base.ResolveAttributes(X, featAttrs)
 
 	// Check that only one classAttribute is defined
 	if len(classAttrs) != 1 {
-		panic("Only one class Attribute can be used")
+		return fmt.Errorf("Only one class Attribute can be used")
 	}
 
 	// Number of features and instances in this training set
@@ -140,6 +140,7 @@ func (nb *BernoulliNBClassifier) Fit(X base.FixedDataGrid) {
 			classCondProb[feat] = float64(numDocs+1) / float64(docsInClass+1)
 		}
 	}
+	return nil
 }
 
 // Use trained model to predict test vector's class. The following
@@ -195,7 +196,7 @@ func (nb *BernoulliNBClassifier) PredictOne(vector [][]byte) string {
 //
 // IMPORTANT: Predict panics if Fit was not called or if the
 // document vector and train matrix have a different number of columns.
-func (nb *BernoulliNBClassifier) Predict(what base.FixedDataGrid) base.FixedDataGrid {
+func (nb *BernoulliNBClassifier) Predict(what base.FixedDataGrid) (base.FixedDataGrid, error) {
 	// Generate return vector
 	ret := base.GeneratePredictionVector(what)
 
@@ -207,5 +208,9 @@ func (nb *BernoulliNBClassifier) Predict(what base.FixedDataGrid) base.FixedData
 		return true, nil
 	})
 
-	return ret
+	return ret, nil
+}
+
+func (nb *BernoulliNBClassifier) String() string {
+	return "BernoulliNBClassifier"
 }
