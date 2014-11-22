@@ -3,6 +3,7 @@ package evaluation
 import (
 	"github.com/sjwhitworth/golearn/base"
 	"math/rand"
+	"sync"
 )
 
 // GetCrossValidatedMetric returns the mean and variance of the confusion-matrix-derived
@@ -49,36 +50,43 @@ func GenerateCrossFoldValidationConfusionMatrices(data base.FixedDataGrid, cls b
 	ret := make([]ConfusionMatrix, folds)
 
 	// Create training/test views for each fold
+	var wait sync.WaitGroup
 	for i := 0; i < folds; i++ {
-		// Fold i is for testing
-		testData := base.NewInstancesViewFromVisible(data, inverseFoldMap[i], data.AllAttributes())
-		otherRows := make([]int, 0)
-		for j := 0; j < folds; j++ {
-			if i == j {
-				continue
+		wait.Add(1)
+		go func(i int) {
+			// Fold i is for testing
+			testData := base.SelectRowsFromMap(data, inverseFoldMap[i])
+			otherRows := make([]int, 0)
+			for j := 0; j < folds; j++ {
+				if i == j {
+					continue
+				}
+				otherRows = append(otherRows, inverseFoldMap[j]...)
 			}
-			otherRows = append(otherRows, inverseFoldMap[j]...)
-		}
 
-		trainData := base.NewInstancesViewFromVisible(data, otherRows, data.AllAttributes())
-		// Train
-		clsFld := cls.CopyUntrained()
-		err := clsFld.Fit(trainData)
-		if err != nil {
-			return nil, err
-		}
-		// Predict
-		pred, err := clsFld.Predict(testData)
-		if err != nil {
-			return nil, err
-		}
-		// Evaluate
-		cf, err := GetConfusionMatrix(testData, pred)
-		if err != nil {
-			return nil, err
-		}
-		ret[i] = cf
+			trainData := base.SelectRowsFomMap(data, otherRows)
+			// Train
+			clsFld := cls.CopyUntrained()
+			err := clsFld.Fit(trainData)
+			if err != nil {
+				panic(err)
+			}
+			// Predict
+			pred, err := clsFld.Predict(testData)
+			if err != nil {
+				panic(err)
+			}
+			// Evaluate
+			cf, err := GetConfusionMatrix(testData, pred)
+			if err != nil {
+				panic(err)
+			}
+			ret[i] = cf
+			wait.Done()
+		}(i)
 	}
+	wait.Wait()
+
 	return ret, nil
 
 }

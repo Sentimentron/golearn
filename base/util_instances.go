@@ -532,3 +532,25 @@ func InstancesAreEqual(inst, other FixedDataGrid) bool {
 
 	return true
 }
+
+// SelectRowsFromMap returns a FixedDataGrid where the rows are
+// reselected and reordered as per the map argument.
+func SelectRowsFromMap(src FixedDataGrid, rows map[int]int) FixedDataGrid {
+	// Handle the sparse case
+	if s, ok := src.(*SparseInstances); ok {
+		ret := s.Copy()
+		ret.Empty()
+		s.MapOverDefined(func(a AttributeSpec, row int, v []byte) error {
+			newRow, ok := rows[row]
+			if !ok {
+				return nil
+			}
+			ret.Set(a, newRow, v)
+			return nil
+		})
+		return ret
+
+	}
+	// Otherwise, use NewInstancesViewFromRows
+	return NewInstancesViewFromRows(src, rows)
+}

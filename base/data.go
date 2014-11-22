@@ -56,4 +56,6 @@ type SparseDataGrid interface {
 	UpdatableDataGrid
 	// SetDefaultValueForAttribute associates a value with a given Attribute.
 	SetDefaultValueForAttribute(Attribute, interface{}) error
+	// MapOverDefined maps over the values which have been set
+	MapOverDefined(func(AttributeSpec, int, []byte) error) error
 }

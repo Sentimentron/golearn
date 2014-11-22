@@ -58,6 +58,11 @@ func (s *SparseInstances) Copy() *SparseInstances {
 	return ret
 }
 
+// Empty removes all the data from these instances
+func (s *SparseInstances) Empty() {
+	s.s = make(map[int]map[int][]byte)
+}
+
 // GetAttribute returns an AttributeSpec for a given attribute.
 func (s *SparseInstances) GetAttribute(a Attribute) (AttributeSpec, error) {
 	// Check in local store
@@ -148,6 +153,24 @@ func (s *SparseInstances) MapOverRows(as []AttributeSpec, f func([][]byte, int) 
 		}
 	}
 	return nil
+}
+
+// MapOverDefined returns all the values that have been Set()
+func (s *SparseInstances) MapOverDefined(f func(AttributeSpec, int, []byte) error) error {
+
+	as := ResolveAllAttributes(s)
+
+	for row, rowd := range s.s {
+		for c, v := range rowd {
+			err := f(as[c], row, v)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+
 }
 
 // RowString returns a string representing the values on a given
