@@ -15,6 +15,14 @@ type SparseInstances struct {
 	maxRow      int
 }
 
+func SparseCopyOf(inst SparseDataGrid) *SparseInstances {
+	if s, ok := inst.(*SparseInstances); ok {
+		return s.Copy()
+	} else {
+		panic("Unsupported")
+	}
+}
+
 // NewSparseInstances generates a new set of SparseInstances.
 func NewSparseInstances() *SparseInstances {
 	return &SparseInstances{
@@ -25,6 +33,29 @@ func NewSparseInstances() *SparseInstances {
 		0,
 		0,
 	}
+}
+
+// Copy returns these instances
+func (s *SparseInstances) Copy() *SparseInstances {
+	ret := NewSparseInstances()
+	for k, v := range s.c {
+		ret.c[k] = v
+	}
+	for k, v := range s.s {
+		ret.s[k] = make(map[int][]byte)
+		for j, w := range v {
+			ret.s[k][j] = w
+		}
+	}
+	for k, v := range s.a {
+		ret.a[k] = v
+	}
+	for k, v := range s.defaultVals {
+		ret.defaultVals[k] = v
+	}
+	ret.attrCounter = s.attrCounter
+	ret.maxRow = s.maxRow
+	return ret
 }
 
 // GetAttribute returns an AttributeSpec for a given attribute.

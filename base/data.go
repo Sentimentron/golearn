@@ -55,5 +55,5 @@ type UpdatableDataGrid interface {
 type SparseDataGrid interface {
 	UpdatableDataGrid
 	// SetDefaultValueForAttribute associates a value with a given Attribute.
-	SetDefaultValueForAttribute(Attribute, d interface{}) error
+	SetDefaultValueForAttribute(Attribute, interface{}) error
 }
