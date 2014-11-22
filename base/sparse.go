@@ -10,7 +10,7 @@ type SparseInstances struct {
 	c           map[Attribute]bool     // Class Attributes
 	s           map[int]map[int][]byte // Sparse storage
 	a           map[Attribute]int      // Attribute resolution
-	defaultVals map[Attribute][]byte   // defaultValues
+	defaultVals map[int][]byte         // defaultValues
 	attrCounter int                    // Attribute counter
 	maxRow      int
 }
@@ -21,7 +21,7 @@ func NewSparseInstances() *SparseInstances {
 		make(map[Attribute]bool),
 		make(map[int]map[int][]byte),
 		make(map[Attribute]int),
-		make(map[Attribute][]byte),
+		make(map[int][]byte),
 		0,
 		0,
 	}
@@ -93,20 +93,18 @@ func (s *SparseInstances) MapOverRows(as []AttributeSpec, f func([][]byte, int) 
 	// Iterate over rows
 	buf := make([][]byte, len(as))
 	for row := range s.s {
-		skipRow := false
 		if _, ok := s.s[row]; !ok {
 			continue
 		}
 		for i, a := range as {
 			val := s.s[row][a.position]
 			if val == nil || len(val) == 0 {
-				// Skip this row
-				skipRow = true
+				val = s.defaultVals[a.position]
+			}
+			if val == nil {
+				panic(fmt.Errorf("Nil defined value: %s on line %d", a.GetAttribute(), row))
 			}
 			buf[i] = val
-		}
-		if skipRow {
-			continue
 		}
 
 		// Call the user defined function
@@ -151,10 +149,10 @@ func (s *SparseInstances) Get(as AttributeSpec, row int) []byte {
 			return v
 		}
 	}
-	if _, ok := s.defaultVals[as.GetAttribute()]; !ok {
+	if _, ok := s.defaultVals[as.position]; !ok {
 		panic(fmt.Errorf("No default value set for %s", as.GetAttribute()))
 	}
-	return s.defaultVals[as.GetAttribute()]
+	return s.defaultVals[as.position]
 }
 
 // Set sets the []byte slice at a given AttributeSpec, row coordinate.
@@ -164,8 +162,8 @@ func (s *SparseInstances) Set(a AttributeSpec, row int, val []byte) {
 		s.s[row] = make(map[int][]byte)
 	}
 	s.s[row][pos] = val
-	if row > s.maxRow {
-		s.maxRow = row
+	if row >= s.maxRow {
+		s.maxRow = row + 1
 	}
 }
 
@@ -191,6 +189,12 @@ func (s *SparseInstances) SetDefaultValueForAttribute(a Attribute, d interface{}
 	if err != nil {
 		return err
 	}
-	s.defaultVals[a] = val
+
+	as, err := s.GetAttribute(a)
+	if err != nil {
+		return err
+	}
+
+	s.defaultVals[as.position] = val
 	return nil
 }
