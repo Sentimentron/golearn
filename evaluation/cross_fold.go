@@ -59,14 +59,16 @@ func GenerateCrossFoldValidationConfusionMatrices(data base.FixedDataGrid, cls b
 			}
 			otherRows = append(otherRows, inverseFoldMap[j]...)
 		}
+
 		trainData := base.NewInstancesViewFromVisible(data, otherRows, data.AllAttributes())
 		// Train
-		err := cls.Fit(trainData)
+		clsFld := cls.CopyUntrained()
+		err := clsFld.Fit(trainData)
 		if err != nil {
 			return nil, err
 		}
 		// Predict
-		pred, err := cls.Predict(testData)
+		pred, err := clsFld.Predict(testData)
 		if err != nil {
 			return nil, err
 		}

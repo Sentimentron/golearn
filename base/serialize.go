@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"reflect"
 	"runtime"
@@ -355,7 +356,9 @@ func SerializeInstances(inst FixedDataGrid, f io.Writer) error {
 
 	// Then write the actual data
 	writtenLength := int64(0)
+	rowsWritten := 0
 	if err := inst.MapOverRows(allSpecs, func(val [][]byte, row int) (bool, error) {
+		log.Print("Written %d of %d rows... (%.2f %%)", rowsWritten, rowCount, 100.0*float64(rowsWritten)/float64(rowCount))
 		for _, v := range val {
 			l := uint64(len(v))
 			wl, err := tw.Write(PackU64ToBytes(l))

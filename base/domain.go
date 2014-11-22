@@ -18,6 +18,8 @@ type Estimator interface {
 // A Predictor is an object that provides predictions.
 type Predictor interface {
 	Predict()
+	CopyTrained() Predictor
+	CopyUntrained() Predictor
 }
 
 // A Model is a supervised learning object, that is

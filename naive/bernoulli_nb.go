@@ -64,6 +64,23 @@ func NewBernoulliNBClassifier() *BernoulliNBClassifier {
 	return &nb
 }
 
+// CopyUntrained returns a copy of this classifier with options, but no training data.
+func (nb *BernoulliNBClassifier) CopyUntrained() base.Classifier {
+	return NewBernoulliNBClassifier()
+}
+
+// CopyTrained returns a copy of this classifier with options and training data
+func (nb *BernoulliNBClassifier) CopyTrained() base.Classifier {
+	ret := NewBernoulliNBClassifier()
+	for s := range nb.condProb {
+		ret.condProb[s] = nb.condProb[s]
+	}
+	for s := range nb.classInstances {
+		ret.classInstances[s] = nb.classInstances[s]
+	}
+	return ret
+}
+
 // Fill data matrix with Bernoulli Naive Bayes model. All values
 // necessary for calculating prior probability and p(f_i)
 func (nb *BernoulliNBClassifier) Fit(X base.FixedDataGrid) error {

@@ -16,6 +16,11 @@ type Classifier interface {
 	Fit(FixedDataGrid) error
 	// Why not make every classifier return a nice-looking string?
 	String() string
+	// CopyTrained returns a copy of the classifier including
+	// training data
+	CopyTrained() Classifier
+	// CopyUntrained returns a copy but throws away the training data
+	CopyUntrained() Classifier
 }
 
 // BaseClassifier stores options common to every classifier.
